@@ -26,7 +26,7 @@ conf = get_config()
 
 topdir = conf.get('path')
 ignore = conf.get('ignore')
-outfile = conf.get('output')
+outfile = os.path.expanduser(conf.get('output'))
 
 prefix_size = len(topdir)
 results = ["checksum,fsize,mtime,fname"]
