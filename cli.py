@@ -45,10 +45,10 @@ def config(showall, site, pool):
 
 
 @cli.command()
-@click.option("-s", "--site", type=click.Choice(sites), required=True)
-@click.option("-p", "--pool", type=click.Choice(pools), required=True)
 @click.option("-f", "--filename", help="name of the run script")
-def runscript(site, pool, filename):
+@click.argument("site", type=click.Choice(sites), required=True)
+@click.argument("pool", type=click.Choice(pools), required=True)
+def runscript(filename, site, pool):
     "makes run script for job submission"
     if site not in sites:
         raise ValueError(f"mismatch site '{site}'. Possible values: {sites}")
@@ -76,9 +76,9 @@ python checksums.py
     f = pathlib.Path(filename)
     with open(f, "w") as fid:
         fid.write(content)
-    print(f"created '{f}'.\nsubmit to slurm as 'sbatch {f}'")
+    print(f"created '{f}'.\nsubmit to slurm as 'sbatch {f}' on {site}")
+    return
 
-    
 
 def process_slurm_directives(d):
     result = []
