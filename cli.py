@@ -15,22 +15,34 @@ pools = {c for item in conf for c in item['pool']}
 def cli():
     pass
 
+
 @cli.command()
-@click.option("-s", "--site", type=click.Choice(sites))
-@click.option("-p", "--pool", type=click.Choice(pools))
-def config(site, pool):
+@click.option("--all", "showall", is_flag=True, default=False,
+              help="Gets the whole config in the absence of arguments.")
+@click.argument("site", required=False, default="")
+@click.argument("pool", required=False, default="")
+def config(showall, site, pool):
     "shows config information for a given site"
-    if site not in sites:
-        raise ValueError(f"site '{site}' missing. Possible values: {sites}")
-    for c in conf:
-        if site == c['site']:
-            break
-    if pool:
-        if pool not in c['pool']:
-            raise ValueError(f"pool '{pool}' missing. Valid choices: {c['pool']}")
-        c = c['pool'][pool]
-    print(yaml.dump(c, default_flow_style=False))
-    return c
+    if not site:
+        if showall:
+            print(yaml.dump(conf, default_flow_style=False))
+        else:
+            print(f"Possible values for SITE: {','.join(sites)}")
+            print(f"Possible values for POOL: {','.join(pools)}")
+        return
+    s = [c for c in conf if c['site'] == site]
+    if not s:
+        raise ValueError(f"Valid choices for Site: {sites}")
+    s = s.pop()
+    if not pool:
+        print(yaml.dump(s, default_flow_style=False))
+        return
+    if pool not in pools:
+        raise ValueError(f"Valid choices for Pool: {pools}")
+    c = s['pool'][pool]
+    print(yaml.dump(s, default_flow_style=False))
+    return
+
 
 @cli.command()
 @click.option("-s", "--site", type=click.Choice(sites), required=True)
