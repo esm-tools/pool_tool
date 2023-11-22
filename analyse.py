@@ -1,6 +1,5 @@
 import os
 import csv
-import click
 from collections import defaultdict, Counter
 
 
@@ -101,6 +100,8 @@ class Trees:
     def __init__(self, left, right):
         self.left = left
         self.right = right
+        self.left_prefix = os.path.commonprefix([i['fname'] for i in left])
+        self.right_prefix = os.path.commonprefix([i['fname'] for i in right])
         self.cleanup()
 
     def cleanup(self):
@@ -122,39 +123,123 @@ class Trees:
         self.common_hashes = list(common)
         self.left_only = Records(left_only)
         self.right_only = Records(right_only)
-        
-    def common_groupby_dirs(self, left=True):
-        bydir = defaultdict(list)
-        if left:
-            root = self.left
-        else:
-            root = self.right
-        for c in self.common_hashes:
-            r = root.by_checksum[c]
-            by_dir[r['rparent']].append(r)
-        return dict(bydir)
     
+    def common_dirs(self, left=True):
+        by_dir = defaultdict(list)
+        branch = (self.right, self.left)[left]
+        for c in self.common_hashes:
+            r = branch.by_checksum[c]
+            by_dir[r['rparent']].append(r)
+        return dict(by_dir)
 
+    def mismatch_hashes(self):
+        result = []
+        basename = os.path.basename
+        for cs in self.common_hashes:
+            if basename(self.left.by_checksum[cs]['fname']) != basename(self.right.by_checksum[cs]['fname']):
+                result.append(cs)
+        return result
 
+    def mismatch_filenames(self):
+        hashes = self.mismatch_hashes()
+        result = []
+        for h in hashes:
+            result.append((self.left.by_checksum[h]['fname'], self.right.by_checksum[h]['fname']))
+        return result
 
-def compare_tree(left, right):
-    assert isinstance(left, Records), f"Must be an instance of 'Records'"
-    left_hashes = set(left.by_checksum)
-    right_hashes = set(right.by_checksum)
-    common = left_hashes.intersection(right_hashes)
-    left_only_hashes = left_hashes - common
-    right_only_hashes = right_hashes - common
-    left_only = [left.by_checksum[h] for h in left_only_hashes]
-    right_only = [right.by_checksum[h] for h in right_only_hashes]
-    return list(common), Records(left_only), Records(right_only)
+    def synced_dirs(self, left=True):
+        partial_sync = self.partially_synced_dirs(left=left)
+        common_dirs = self.common_dirs(left=left)
+        return list(set(common_dirs) - set(partial_sync))
 
+    def unsynced_dirs(self, left=True):
+        branch = (self.right_only, self.left_only)[left]
+        return list(set(branch.by_dir) - set(self.partially_synced_dirs(left=left))) 
 
-def main(left, right):
-    data_l = read_csv(left)
-    data_l = drop_errors(data_l)
-    data_l, dups_l = duplicates(data_l)
-    data_r = read_csv(right)
-    data_r = drop_errors(data_r)
-    data_r, dups_r = duplicates(data_r)
-    common, left_only, right_only = compare_tree(data_l, data_r)
+    def partially_synced_dirs(self, left=True):
+        common_dirs = self.common_dirs(left=left)
+        branch = (self.right_only, self.left_only)[left]
+        return list(set(branch.by_dir) & set(common_dirs))
 
+    def partially_synced(self, return_checksum=False):
+        partial_dirs = self.partially_synced_dirs()
+        result = []
+        if return_checksum:
+            func = lambda x: x['checksum']
+        else:
+            func = lambda x: x['fname']
+        for d in partial_dirs:
+            left_cs = self.left.by_dir[d]
+            for row in left_cs:
+                result.append(func(row))
+        return result
+
+    def unsynced_to_file(self, left=True, files=False):
+        pjoin = os.path.join
+        sep = os.path.sep
+        filename = (("Right_only", "Left_only")[left], ("dirs", "files")[files] )
+        filename = "_".join(filename)
+        unsynced_dirs = sorted(self.unsynced_dirs(left=left),
+                               key=lambda x: (len(x.split(sep)), x))
+        prefix = (self.right_prefix, self.left_prefix)[left]
+        if files:
+            branch = (self.right_only, self.left_only)[left]
+            for index, dirname in enumerate(unsynced_dirs):
+                files = sorted(i['fname'] for i in branch.by_dir[dirname])
+                files_str = "\n".join(files)
+                fname = f"{filename}_{index:02d}.txt"
+                print(f"creating file-listing: {fname}")
+                with open(fname, "w") as fid:
+                    fid.writelines(files_str)
+                    fid.write("\n")
+        else:
+            filename = filename + ".txt"
+            unsynced_dirs = list(map(lambda x: pjoin(prefix, x), unsynced_dirs))
+            unsynced_dirs_str = "\n".join(unsynced_dirs)
+            print(f"creating dir-listing: {filename}")
+            with open(filename, "w") as fid:
+                fid.writelines(unsynced_dirs_str)
+                fid.write("\n")
+        
+    def common_to_file(self):
+        L = self.left
+        R = self.right
+        dirname = os.path.dirname
+        dir_map = set()
+        file_map = list()
+        for h in self.common_hashes:
+            lf = L.by_checksum[h]['fname']
+            ld = dirname(lf)
+            rf = R.by_checksum[h]['fname']
+            rd = dirname(rf)
+            dir_map.add((ld,rd))
+            file_map.append((lf, rf))
+        dir_mapping = "\n".join([",".join(pair) for pair in dir_map])
+        filename = "common_directory_mapping.txt"
+        print(f"creating: {filename}")
+        with open(filename, "w") as fid:
+            fid.writelines(dir_mapping)
+            fid.write("\n")
+        file_mapping = "\n".join([",".join(pair) for pair in file_map])
+        filename = "common_file_mapping.txt"
+        print(f"creating: {filename}")
+        with open(filename, "w") as fid:
+            fid.writelines(file_mapping)
+            fid.write("\n")
+
+    def mismatch_filenames_to_file(self):
+        data = self.mismatch_filenames()
+        data_str = "\n".join([",".join(row) for row in data])
+        filename = "mismatch_filenames.txt"
+        print(f"creating: {filename}")
+        with open(filename, "w") as fid:
+            fid.writelines(data_str)
+            fid.write("\n")
+
+    def report(self):
+        self.unsynced_to_file(left=True, files=False)
+        self.unsynced_to_file(left=True, files=True)
+        self.unsynced_to_file(left=False, files=False)
+        self.unsynced_to_file(left=False, files=True)
+        self.common_to_file()
+        self.mismatch_filenames_to_file()

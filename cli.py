@@ -1,3 +1,4 @@
+import os
 import click
 import yaml
 import pathlib
@@ -9,6 +10,24 @@ with open("config.yaml") as fid:
 
 sites = [c['site'] for c in conf]
 pools = {c for item in conf for c in item['pool']}
+
+
+def process_slurm_directives(d):
+    result = []
+    for key, val in d.items():
+        if key.strip().startswith("--"):
+            if val.strip():
+                s = f"#SBATCH {key}={val}"
+            else:
+                s = f"#SBATCH {key}"
+        else:
+            if val.strip():
+                s = f"#SBATCH {key} {val}"
+            else:
+                s = f"#SBATCH {key}"
+        result.append(s)
+    result = "\n".join(result)
+    return result
 
 
 @click.group()
@@ -80,22 +99,31 @@ python checksums.py
     return
 
 
-def process_slurm_directives(d):
-    result = []
-    for key, val in d.items():
-        if key.strip().startswith("--"):
-            if val.strip():
-                s = f"#SBATCH {key}={val}"
-            else:
-                s = f"#SBATCH {key}"
-        else:
-            if val.strip():
-                s = f"#SBATCH {key} {val}"
-            else:
-                s = f"#SBATCH {key}"
-        result.append(s)
-    result = "\n".join(result)
-    return result
+@cli.command()
+@click.option("-o", "--outdir", type=click.Path(), default=".",
+              help="directory where results are to be saved")
+@click.argument("left", required=True, type=click.Path())
+@click.argument("right", required=True, type=click.Path())
+def compare(outdir, left, right):
+    """Compare csv files containing checksum to infer the status of data
+    in these data pools. The results include, synced files at both HPC sites. unsynced files.
+    directory mapping of synced files. filename mis-matches.
+    
+    LEFT: csv file containing checksums of all files in the pool for a given project and HPC site.
+
+    RIGHT: similar file as LEFT but from different HPC site for the same project.
+    """
+    from analyse import read_csv, Trees
+    os.makedirs(outdir, exist_ok=True)
+    left_data = read_csv(left)
+    right_data = read_csv(right)
+    t = Trees(left_data, right_data)
+    t.compare()
+    basedir = pathlib.Path().cwd()
+    os.chdir(outdir)
+    t.report()
+    os.chdir(basedir)
+
 
 if __name__ == "__main__":
     cli()
