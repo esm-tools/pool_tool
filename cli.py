@@ -5,7 +5,8 @@ import pathlib
 from pprint import pprint
 
 
-with open("config.yaml") as fid:
+config_file = os.path.join(os.path.dirname(__file__), "config.yaml")
+with open(config_file) as fid:
     conf = yaml.load(fid, yaml.loader.SafeLoader)
 
 sites = [c['site'] for c in conf]
