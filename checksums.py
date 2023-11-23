@@ -10,7 +10,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 def get_config():
     site = os.environ.get("POOL_SITE")
     pool = os.environ.get("POOL_NAME")
-    with open("config.yaml") as fid:
+    config_file = os.path.join(os.path.dirname(__file__), "config.yaml")
+    with open(config_file) as fid:
         config = yaml.load(fid, yaml.loader.SafeLoader)
     for sites in config:
         if sites['site'] == site:
