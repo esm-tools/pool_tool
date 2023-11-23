@@ -78,6 +78,13 @@ class Records:
         for item in self.data:
             yield item
 
+    def size(self):
+        d = self.data
+        return sum(i['fsize'] for i in d)
+
+    def __len__(self):
+        return len(self.data)
+
 
 class Duplicates:
     def __init__(self, data):
@@ -94,6 +101,14 @@ class Duplicates:
             checksum[entry[0]['checksum']].append(entry)
         self.by_dir = dict(rparent)
         self.by_checksum = dict(checksum)
+
+    def size(self):
+        d = self.data
+        return sum(row['fsize'] for items in d for row in items[1:])
+
+    def __len__(self):
+        d = self.data
+        return sum(len(items[1:]) for items in d)
 
 
 class Trees:
@@ -243,3 +258,30 @@ class Trees:
         self.unsynced_to_file(left=False, files=True)
         self.common_to_file()
         self.mismatch_filenames_to_file()
+
+    def summary(self):
+        import humanize
+        left_dups_count = len(self.left_dups)
+        right_dups_count = len(self.right_dups)
+        left_files_count = len(self.left) + left_dups_count
+        right_files_count = len(self.right) + right_dups_count
+        left_dups_size = self.left_dups.size()
+        right_dups_size = self.right_dups.size()
+        left_files_size = self.left.size() + left_dups_size
+        right_files_size = self.right.size() + right_dups_size
+        synced_files = len(self.common_hashes)
+        by_checksum = self.left.by_checksum
+        synced_files_size = sum(by_checksum[i]['fsize'] for i in self.common_hashes)
+        s = f"""
+Left:
+      Total files: {left_files_count} ({humanize.naturalsize(left_files_size)})
+  Duplicate files: {left_dups_count}  ({humanize.naturalsize(left_dups_size)})
+
+Right:
+      Total files: {right_files_count} ({humanize.naturalsize(right_files_size)})
+  Duplicate files: {right_dups_count}  ({humanize.naturalsize(right_dups_size)})
+
+Common:
+    synced files: {synced_files} ({humanize.naturalsize(synced_files_size)} bytes)
+"""
+        print(s)

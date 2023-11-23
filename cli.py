@@ -125,6 +125,24 @@ def compare(outdir, left, right):
     os.chdir(basedir)
 
 
+@cli.command()
+@click.argument("left", required=True, type=click.Path())
+@click.argument("right", required=True, type=click.Path())
+def summary(left, right):
+    """Prints a short summary by analysing csv files.
+
+    LEFT: csv file containing checksums of all files in the pool for a given project and HPC site.
+
+    RIGHT: similar file as LEFT but from different HPC site for the same project.
+    """
+    from analyse import read_csv, Trees
+    left_data = read_csv(left)
+    right_data = read_csv(right)
+    t = Trees(left_data, right_data)
+    t.compare()
+    t.summary()
+
+
 if __name__ == "__main__":
     cli()
 
