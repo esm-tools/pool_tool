@@ -7,10 +7,10 @@ from pprint import pprint
 
 config_file = os.path.join(os.path.dirname(__file__), "config.yaml")
 with open(config_file) as fid:
-    conf = yaml.load(fid, yaml.loader.SafeLoader)
+    conf = yaml.safe_load(fid)
 
-sites = [c['site'] for c in conf]
-pools = {c for item in conf for c in item['pool']}
+sites = list(conf)
+pools = {p for site in sites for p in conf[site]['pool']}
 
 
 def process_slurm_directives(d):
@@ -50,17 +50,17 @@ def config(showall, site, pool):
             print(f"Possible values for SITE: {','.join(sites)}")
             print(f"Possible values for POOL: {','.join(pools)}")
         return
-    s = [c for c in conf if c['site'] == site]
-    if not s:
+    if site not in sites:
         raise ValueError(f"Valid choices for Site: {sites}")
-    s = s.pop()
-    if not pool:
-        print(yaml.dump(s, default_flow_style=False))
-        return
-    if pool not in pools:
+    if pool is None:
+        c = conf[site]
+        print(yaml.dump(c, default_flow_style=False))
+    elif pool not in pools:
         raise ValueError(f"Valid choices for Pool: {pools}")
-    c = s['pool'][pool]
-    print(yaml.dump(s, default_flow_style=False))
+    c = {}
+    c[site] = conf[site]
+    c[site]['pool'] = conf[site]['pool'][pool]
+    print(yaml.dump(c, default_flow_style=False))
     return
 
 
@@ -74,11 +74,12 @@ def runscript(filename, site, pool):
         raise ValueError(f"mismatch site '{site}'. Possible values: {sites}")
     if pool not in pools:
         raise ValueError(f"mismatch pool '{pool}'. Possible values: {pools}")
-    c = ([c for c in conf if c["site"] == site]).pop()
+    c = conf[site]
     c_pool = c['pool'][pool]
     c_slurm = c['slurm']
     c_extras = c['extras']
     c_extras = "\n".join(c_extras)
+    c_conf_str = yaml.dump(c_pool)
     slurm_directives = process_slurm_directives(c_slurm)
     content = f"""#!/bin/bash
 
@@ -88,6 +89,7 @@ def runscript(filename, site, pool):
 
 export POOL_SITE={site}
 export POOL_NAME={pool}
+export POOL_CONF={c_conf_str}
 
 python checksums.py
 """
