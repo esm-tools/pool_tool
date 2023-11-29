@@ -52,14 +52,15 @@ def config(showall, site, pool):
         return
     if site not in sites:
         raise ValueError(f"Valid choices for Site: {sites}")
-    if pool is None:
+    if not pool:
         c = conf[site]
         print(yaml.dump(c, default_flow_style=False))
+        return
     elif pool not in pools:
         raise ValueError(f"Valid choices for Pool: {pools}")
     c = {}
     c[site] = conf[site]
-    c[site]['pool'] = conf[site]['pool'][pool]
+    c[site]['pool'] = {pool: conf[site]['pool'][pool]}
     print(yaml.dump(c, default_flow_style=False))
     return
 
@@ -76,10 +77,11 @@ def runscript(filename, site, pool):
         raise ValueError(f"mismatch pool '{pool}'. Possible values: {pools}")
     c = conf[site]
     c_pool = c['pool'][pool]
+    print(c_pool)
     c_slurm = c['slurm']
     c_extras = c['extras']
     c_extras = "\n".join(c_extras)
-    c_conf_str = yaml.dump(c_pool)
+    c_conf_str = yaml.dump(c_pool).replace('\n','NEWLINE')
     slurm_directives = process_slurm_directives(c_slurm)
     content = f"""#!/bin/bash
 
