@@ -1,38 +1,29 @@
 #!/usr/bin/env python
 
 import os
+import re
 import stat
 import hashlib
 import yaml
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
+CHUNKSIZE = 1024 * 1024  # 1MB
+
+
 def get_config():
     site = os.environ.get("POOL_SITE")
     pool = os.environ.get("POOL_NAME")
-    config_file = os.path.join(os.path.dirname(__file__), "config.yaml")
-    with open(config_file) as fid:
-        config = yaml.load(fid, yaml.loader.SafeLoader)
-    for sites in config:
-        if sites['site'] == site:
-            break
-    for pools in site:
-        if pools['pool'] == pool:
-            break
-    conf = pools['pool']
+    conf = os.environ.get("POOL_CONF")
+    if conf is None:
+        config_file = os.path.join(os.path.dirname(__file__), "config.yaml")
+        with open(config_file) as fid:
+            config = yaml.safe_load(fid)
+        conf = config[site]['pool'][pool]
+    else:
+        conf = yaml.safe_load(conf)
     return conf
 
-
-conf = get_config()
-
-topdir = conf.get('path')
-ignore = conf.get('ignore')
-outfile = os.path.expanduser(conf.get('output'))
-
-prefix_size = len(topdir)
-results = ["checksum,fsize,mtime,fname"]
-
-CHUNKSIZE = 1024 * 1024  # 1MB
 
 def onerror(e):
     print(f"ERROR: {e}")
@@ -63,7 +54,7 @@ def md5(fname, chunksize=CHUNKSIZE):
     return hash_md5.hexdigest()
 
 
-def stats(fname, prefix=topdir, prefix_size=prefix_size, sep=os.path.sep, dirname=os.path.dirname):
+def stats(fname):
     try:
         checksum = md5(fname)
         st = os.stat(fname)
@@ -74,20 +65,27 @@ def stats(fname, prefix=topdir, prefix_size=prefix_size, sep=os.path.sep, dirnam
     return record
         
 
-def get_files(topdir, ignore=ignore):
+drop_hidden_files_or_dirs = re.compile(r'^[^.]').match
+
+
+def get_files(topdir, ignore=ignore, drop_hidden=drop_hidden_files_or_dirs):
     all_files = []
     for root, dirs, files in os.walk(topdir, onerror=onerror):
+        dirs = list(filter(drop_hidden, dirs))
         dirs[:] = [d for d in dirs if d not in ignore]
-        files = [os.path.join(root, f) for f in files if not f.startswith('.')]
+        files = list(filter(drop_hidden, files))
+        files = [f for f in files if f not in ignore]
+        files = [os.path.join(root, f) for f in files]
         if files:
             all_files.extend(files)
     return all_files
 
 
-def main(pool, results=results):
-    files = get_files(topdir)
+def main(pool, topdir, outfile, ignore=None):
+    files = get_files(topdir, ignore=ignore)
     nfiles = len(files)
     print(f"nfiles: {nfiles}")
+    results = ["checksum,fsize,mtime,fpath"]
     futures = [pool.submit(stats, f) for f in files]
     for item in as_completed(futures):
         results.append(item.result())
@@ -98,5 +96,19 @@ def main(pool, results=results):
 
 
 if __name__ == "__main__":
+    if "POOL_SITE" in os.environ:
+        conf = get_config()
+    else:
+        import sys
+        site, poolname = sys.argv[1:]
+        print(site, poolname)
+        os.environ['POOL_SITE'] = site
+        os.environ['POOL_NAME'] =  poolname
+        conf = get_config()
+
+    topdir = conf.get('topdir')
+    ignore = conf.get('ignore')
+    outfile = os.path.expanduser(conf.get('output'))
+
     pool = ProcessPoolExecutor()
     main(pool)

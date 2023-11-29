@@ -1,8 +1,14 @@
-- site: levante
+levante:
   pool:
     fesom2:
       path: /pool/data/AWICM/FESOM2
       output: ~/checksum_fesom2_levante.csv
+      ignore:
+      - .git
+      - __pycache__
+    fesom:
+      path: /pool/data/AWICM/FESOM1
+      output: ~/checksum_fesom1_levante.csv
       ignore:
       - .git
   slurm:
@@ -11,7 +17,7 @@
     -t: '3:00:00'
   extras:
   - "module load python3/2023.01-gcc-11.2.0"
-- site: albedo
+albedo:
   pool:
     fesom2:
       path: /albedo/pool/FESOM2
