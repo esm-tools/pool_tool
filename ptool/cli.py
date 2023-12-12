@@ -105,11 +105,13 @@ python checksums.py
 
 
 @cli.command()
-@click.option("-o", "--outdir", type=click.Path(), default=".",
-              help="directory where results are to be saved")
+@click.option("-o", "--outfile", type=click.File("w"), default="-",
+              help="csv file to write results")
+@click.option("--fullpath", is_flag=True, required=False, help='displays full path instead of relative path')
+@click.option('--ignore', help='ignores directory and files')
 @click.argument("left", required=True, type=click.Path())
 @click.argument("right", required=True, type=click.Path())
-def compare(outdir, left, right):
+def compare(outfile, fullpath, ignore, left, right):
     """Compare csv files containing checksum to infer the status of data
     in these data pools. The results include, synced files at both HPC sites. unsynced files.
     directory mapping of synced files. filename mis-matches.
@@ -118,34 +120,34 @@ def compare(outdir, left, right):
 
     RIGHT: similar file as LEFT but from different HPC site for the same project.
     """
-    from analyse import read_csv, Trees
-    os.makedirs(outdir, exist_ok=True)
-    left_data = read_csv(left)
-    right_data = read_csv(right)
-    t = Trees(left_data, right_data)
-    t.compare()
-    basedir = pathlib.Path().cwd()
-    os.chdir(outdir)
-    t.report()
-    os.chdir(basedir)
+    from analyse import read_csv, compare_compact
+    ld, ld_dups = read_csv(left, ignore=ignore)
+    lr, lr_dups = read_csv(right, ignore=ignore)
+    columns = 'rpath'
+    if fullpath:
+        columns = 'fpath'
+    res = compare_compact(ld, lr, columns=columns, relabel=True)
+    if 'stdout' in outfile.name:
+        click.echo(res)
+    else:
+        click.echo(f'Writing results as csv to file {outfile.name}')
+        res.to_csv(outfile)
+        click.echo(res)
 
 
 @cli.command()
+@click.option('--ignore', help='ignores directory and files')
 @click.argument("left", required=True, type=click.Path())
 @click.argument("right", required=True, type=click.Path())
-def summary(left, right):
+def summary(ignore, left, right):
     """Prints a short summary by analysing csv files.
 
     LEFT: csv file containing checksums of all files in the pool for a given project and HPC site.
 
     RIGHT: similar file as LEFT but from different HPC site for the same project.
     """
-    from analyse import read_csv, Trees
-    left_data = read_csv(left)
-    right_data = read_csv(right)
-    t = Trees(left_data, right_data)
-    t.compare()
-    t.summary()
+    from analyse import summary
+    summary(left, right, ignore)
 
 
 if __name__ == "__main__":

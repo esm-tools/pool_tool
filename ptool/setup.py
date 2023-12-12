@@ -20,6 +20,7 @@ setup(
         "click",
         "pyyaml",
         "humanize",
+        "tabulate",
     ],
     entry_points="""
         [console_scripts]
