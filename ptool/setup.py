@@ -22,6 +22,7 @@ setup(
         "humanize",
         "tabulate",
         "pandas",
+        "pyarrow",
     ],
     entry_points="""
         [console_scripts]
