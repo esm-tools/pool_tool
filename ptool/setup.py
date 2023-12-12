@@ -21,6 +21,7 @@ setup(
         "pyyaml",
         "humanize",
         "tabulate",
+        "pandas",
     ],
     entry_points="""
         [console_scripts]
