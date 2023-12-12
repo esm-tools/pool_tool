@@ -21,7 +21,6 @@ def get_config():
             config = yaml.safe_load(fid)
         conf = config[site]['pool'][pool]
     else:
-        conf = conf.replace('NEWLINE', '\n')
         conf = yaml.safe_load(conf)
     return conf
 

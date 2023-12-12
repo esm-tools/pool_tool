@@ -81,7 +81,7 @@ def runscript(filename, site, pool):
     c_slurm = c['slurm']
     c_extras = c['extras']
     c_extras = "\n".join(c_extras)
-    c_conf_str = yaml.dump(c_pool).replace('\n','NEWLINE')
+    c_conf_str = yaml.dump(c_pool, default_flow_style=True, width=float("inf")).replace("\n", "")
     slurm_directives = process_slurm_directives(c_slurm)
     content = f"""#!/bin/bash
 
@@ -91,7 +91,7 @@ def runscript(filename, site, pool):
 
 export POOL_SITE={site}
 export POOL_NAME={pool}
-export POOL_CONF={c_conf_str}
+export POOL_CONF="{c_conf_str}"
 
 python checksums.py
 """
