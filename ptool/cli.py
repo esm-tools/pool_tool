@@ -67,9 +67,10 @@ def config(showall, site, pool):
 
 @cli.command()
 @click.option("-f", "--filename", help="name of the run script")
+@click.option("-c", "--checksum", type=click.Choice(['md5', 'sha1', 'sha256']), required=False, default='md5')
 @click.argument("site", type=click.Choice(sites), required=True)
 @click.argument("pool", type=click.Choice(pools), required=True)
-def runscript(filename, site, pool):
+def runscript(filename, checksum, site, pool):
     "makes run script for job submission"
     if site not in sites:
         raise ValueError(f"mismatch site '{site}'. Possible values: {sites}")
@@ -77,6 +78,7 @@ def runscript(filename, site, pool):
         raise ValueError(f"mismatch pool '{pool}'. Possible values: {pools}")
     c = conf[site]
     c_pool = c['pool'][pool]
+    c_pool['checksum'] = checksum
     print(c_pool)
     c_slurm = c['slurm']
     c_extras = c['extras']
