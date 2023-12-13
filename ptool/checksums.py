@@ -79,7 +79,7 @@ def main(pool, topdir, outfile, ignore=None, checksum_name='md5'):
     print(f"nfiles: {nfiles}")
     _stats = partial(stats, checksum_name=checksum_name)
     results = ["checksum,fsize,mtime,fpath"]
-    futures = pool.map(_stats, files, chunksize=10)
+    futures = pool.map(_stats, files, chunksize=1)
     for i, item in enumerate(futures):
         if not item.startswith('-'):
             results.append(item)
