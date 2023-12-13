@@ -6,6 +6,7 @@ import stat
 import hashlib
 import yaml
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import partial
 
 
 CHUNKSIZE = 1024 * 1024  # 1MB
@@ -29,62 +30,62 @@ def onerror(e):
     print(f"ERROR: {e}")
 
 
-def get_checksum_func(name=None, default='md5'):
+def make_checksum_func(name=None, chunksize=CHUNKSIZE, default='md5'):
     if name and name in hashlib.algorithms_guaranteed:
-        return getattr(hashlib, name)
-    if name:
-        allowed = ','.join(sorted(hashlib.algorithms_guaranteed))
-        print(f"'{name}' not in : {allowed}")
-        print(f"Using {default} instead.")
+        func = getattr(hashlib, name)
     else:
-        print(f"Using {default}")
-    return getattr(hashlib, default)
+        print(f"Using {default} (default)")
+        func = getattr(hashlib, default)
+    def calculate_checksum(filename, func=func, chunksize=chunksize):
+        buf = bytearray(chunksize)
+        view = memoryview(buf)
+        cs = func()
+        with open(filename, "rb") as fileobj:
+            readinto = fileobj.readinto
+            update = cs.update
+            while True:
+                size = readinto(buf)
+                if size == 0:
+                    break
+                update(view[:size])
+        return f"{cs.name}:{cs.hexdigest()}"
+    return calculate_checksum
 
 
-def md5(fname, chunksize=CHUNKSIZE):
-    hash_md5 = hashlib.md5()
-    buf = bytearray(chunksize)
-    view = memoryview(buf)
-    with open(fname, "rb") as fileobj:
-        while True:
-            size = fileobj.readinto(buf)
-            if size == 0:
-                break
-            hash_md5.update(view[:size])
-    return hash_md5.hexdigest()
-
-
-def stats(fname):
+def stats(fpath, checksum_func, os=os):
     try:
-        checksum = md5(fname)
-        st = os.stat(fname)
-        record = f"{checksum},{st.st_size},{st.st_mtime},{fname}"
+        checksum = checksum_func(fpath)
+        st = os.stat(fpath)
+        record = f"{checksum},{st.st_size},{st.st_mtime},{fpath}"
     except:
-        print(f"ERROR: skipping {fname}")
-        record = f"-,0,0,{fname},"
+        print(f"ERROR: skipping {fpath}")
+        record = f"-,0,0,{fpath}"
     return record
         
 
 drop_hidden_files_or_dirs = re.compile(r'^[^.]').match
 
 
-def get_files(topdir, ignore=ignore, drop_hidden=drop_hidden_files_or_dirs):
+def get_files(topdir, ignore=None, drop_hidden=drop_hidden_files_or_dirs):
     all_files = []
     for root, dirs, files in os.walk(topdir, onerror=onerror):
         dirs = list(filter(drop_hidden, dirs))
-        dirs[:] = [d for d in dirs if d not in ignore]
         files = list(filter(drop_hidden, files))
-        files = [f for f in files if f not in ignore]
+        if ignore:
+            dirs[:] = [d for d in dirs if d not in ignore]
+            files = [f for f in files if f not in ignore]
         files = [os.path.join(root, f) for f in files]
         if files:
             all_files.extend(files)
     return all_files
 
 
-def main(pool, topdir, outfile, ignore=None):
+def main(pool, topdir, outfile, ignore=None, checksum_name='md5'):
     files = get_files(topdir, ignore=ignore)
     nfiles = len(files)
     print(f"nfiles: {nfiles}")
+    checksum_func = make_checksum_func(checksum_name)
+    stats = partial(stats, checksum_func=checksum_func)
     results = ["checksum,fsize,mtime,fpath"]
     futures = [pool.submit(stats, f) for f in files]
     for item in as_completed(futures):
@@ -106,9 +107,10 @@ if __name__ == "__main__":
         os.environ['POOL_NAME'] =  poolname
         conf = get_config()
 
-    topdir = conf.get('topdir')
+    topdir = conf.get('path')
     ignore = conf.get('ignore')
     outfile = os.path.expanduser(conf.get('output'))
+    checksum = conf.get('checksum')
 
     pool = ProcessPoolExecutor()
-    main(pool)
+    main(pool, topdir=topdir, outfile=outfile, ignore=ignore, checksum_name=checksum)
