@@ -79,9 +79,11 @@ def main(pool, topdir, outfile, ignore=None, checksum_name='md5'):
     print(f"nfiles: {nfiles}")
     _stats = partial(stats, checksum_name=checksum_name)
     results = ["checksum,fsize,mtime,fpath"]
-    futures = pool.map(_stats, files, chunksize=20)
-    for item in as_completed(futures):
-        results.append(item.result())
+    futures = pool.map(_stats, files, chunksize=10)
+    for i, item in enumerate(futures):
+        if not item.startswith('-'):
+            results.append(item)
+        print(f"{i:>6d} {item}")
     results = "\n".join(results)
     print("Writing results to disk")
     with open(outfile, "w") as fid:
