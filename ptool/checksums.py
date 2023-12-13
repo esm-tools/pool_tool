@@ -9,7 +9,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
 
 
-CHUNKSIZE = 1024 * 1024  # 1MB
+CHUNKSIZE = 1024 * 1024 * 10  # 10MB
 
 
 def get_config():
@@ -30,31 +30,24 @@ def onerror(e):
     print(f"ERROR: {e}")
 
 
-def make_checksum_func(name=None, chunksize=CHUNKSIZE, default='md5'):
-    if name and name in hashlib.algorithms_guaranteed:
-        func = getattr(hashlib, name)
-    else:
-        print(f"Using {default} (default)")
-        func = getattr(hashlib, default)
-    def calculate_checksum(filename, func=func, chunksize=chunksize):
-        buf = bytearray(chunksize)
-        view = memoryview(buf)
-        cs = func()
-        with open(filename, "rb") as fileobj:
-            readinto = fileobj.readinto
-            update = cs.update
-            while True:
-                size = readinto(buf)
-                if size == 0:
-                    break
-                update(view[:size])
-        return f"{cs.name}:{cs.hexdigest()}"
-    return calculate_checksum
+def calculate_checksum(filename, name='md5', chunksize=CHUNKSIZE):
+    buf = bytearray(chunksize)
+    view = memoryview(buf)
+    cs = getattr(hashlib, name)()
+    with open(filename, "rb") as fileobj:
+        readinto = fileobj.readinto
+        update = cs.update
+        while True:
+            size = readinto(buf)
+            if size == 0:
+                break
+            update(view[:size])
+    return f"{cs.name}:{cs.hexdigest()}"
 
 
-def stats(fpath, checksum_func, os=os):
+def stats(fpath, checksum_name, os=os):
     try:
-        checksum = checksum_func(fpath)
+        checksum = calculate_checksum(fpath, name=checksum_name)
         st = os.stat(fpath)
         record = f"{checksum},{st.st_size},{st.st_mtime},{fpath}"
     except:
@@ -85,9 +78,9 @@ def main(pool, topdir, outfile, ignore=None, checksum_name='md5'):
     nfiles = len(files)
     print(f"nfiles: {nfiles}")
     checksum_func = make_checksum_func(checksum_name)
-    stats = partial(stats, checksum_func=checksum_func)
+    _stats = partial(stats, checksum_func=checksum_func)
     results = ["checksum,fsize,mtime,fpath"]
-    futures = [pool.submit(stats, f) for f in files]
+    futures = pool.map(_stats, files, chunksize=20)
     for item in as_completed(futures):
         results.append(item.result())
     results = "\n".join(results)
@@ -112,5 +105,5 @@ if __name__ == "__main__":
     outfile = os.path.expanduser(conf.get('output'))
     checksum = conf.get('checksum')
 
-    pool = ProcessPoolExecutor()
+    pool = ProcessPoolExecutor(max_workers=os.cpu_count())
     main(pool, topdir=topdir, outfile=outfile, ignore=ignore, checksum_name=checksum)
