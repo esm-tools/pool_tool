@@ -77,8 +77,7 @@ def main(pool, topdir, outfile, ignore=None, checksum_name='md5'):
     files = get_files(topdir, ignore=ignore)
     nfiles = len(files)
     print(f"nfiles: {nfiles}")
-    checksum_func = make_checksum_func(checksum_name)
-    _stats = partial(stats, checksum_func=checksum_func)
+    _stats = partial(stats, checksum_name=checksum_name)
     results = ["checksum,fsize,mtime,fpath"]
     futures = pool.map(_stats, files, chunksize=20)
     for item in as_completed(futures):
