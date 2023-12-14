@@ -108,12 +108,13 @@ python checksums.py
 
 @cli.command()
 @click.option("-o", "--outfile", type=click.File("w"), default="-",
-              help="csv file to write results")
+              help="file to write results")
+@click.option("--format", "fileformat", type=click.Choice(['csv', 'yaml']), default='csv', help='output format (default: csv)')
 @click.option("--fullpath", is_flag=True, required=False, help='displays full path instead of relative path')
 @click.option('--ignore', help='ignores directory and files')
 @click.argument("left", required=True, type=click.Path())
 @click.argument("right", required=True, type=click.Path())
-def compare(outfile, fullpath, ignore, left, right):
+def compare(outfile, fileformat, fullpath, ignore, left, right):
     """Compare csv files containing checksum to infer the status of data
     in these data pools. The results include, synced files at both HPC sites. unsynced files.
     directory mapping of synced files. filename mis-matches.
@@ -122,9 +123,14 @@ def compare(outfile, fullpath, ignore, left, right):
 
     RIGHT: similar file as LEFT but from different HPC site for the same project.
     """
-    from analyse import read_csv, compare_compact
+    from analyse import read_csv, compare_compact, compare_directory_view
     ld, ld_dups = read_csv(left, ignore=ignore)
     lr, lr_dups = read_csv(right, ignore=ignore)
+    if fileformat == 'yaml':
+        d = compare_directory_view(ld, lr, fullpath=fullpath)
+        click.echo(f'Writing results as yaml to file {outfile.name}')
+        yaml.dump(d, outfile, sort_keys=False)
+        return
     columns = 'rpath'
     if fullpath:
         columns = 'fpath'
