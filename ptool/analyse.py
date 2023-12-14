@@ -1,7 +1,9 @@
 import os
 import pandas as pd
 import humanize
+from collections import defaultdict
 
+__all__ = ['read_csv', 'compare', 'compare_compact', 'compare_directory_view', 'summary', 'merge', 'directory_map']
 
 def read_csv(filename, ignore=None):
     df = pd.read_csv(filename, engine='pyarrow')
@@ -45,7 +47,7 @@ def merge(dl, da, on='checksum', how='inner'):
     return mm
 
 
-def directorymap(m):
+def directory_map(m):
     return (m[['rparent_left', 'rparent_right']]).drop_duplicates()
 
 
@@ -130,6 +132,38 @@ def compare_compact(left, right, columns='rpath', relabel=False):
     return df
 
 
+def compare_directory_view(left, right, fullpath=False, relabel=True):
+    c = compare(left=left, right=right)
+    c.reset_index(inplace=True)
+    dm = defaultdict(dict)
+    correct_gname = lambda x: x
+    if relabel:
+        correct_gname = lambda x: x.replace('left', 'first').replace('right', 'second')
+    if fullpath:
+        c['fparent_left'] = c['fpath_left'].apply(os.path.dirname)
+        groupkey = 'fparent_left'
+    else:
+        groupkey = 'rparent_left'
+    for gname, group in c.groupby(groupkey):
+        total_files = group.shape[0]
+        summary = {correct_gname(_gname): f"{_g.shape[0]}/{total_files}" 
+                for _gname, _g in group.groupby('flag')}
+        try:
+            summary['paths'] = [os.path.dirname(group.fpath_left.iloc[0]), os.path.dirname(group.fpath_right.iloc[0])]
+        except TypeError:
+            summary['paths'] = os.path.dirname(group.fpath_left.iloc[0])
+        dm[gname]['summary'] = summary
+        d = {}
+        for _gname, _g in group.groupby('flag'):
+            if _gname in ('identical', 'unique'):
+                d[_gname] = _g.fname_left.values.tolist()
+            else:
+                d[correct_gname(_gname)] = (_g[['fname_left', 'fname_right']]).values.tolist()
+        dm[gname]['details'] = d
+    return dict(dm)
+
+
+
 def summary(filename1, filename2, ignore=None):
     left, left_dups = read_csv(filename1, ignore=ignore)
     right, right_dups = read_csv(filename2, ignore=ignore)
@@ -172,7 +206,7 @@ def summary(filename1, filename2, ignore=None):
     import tabulate
     print(tabulate.tabulate(df, headers='keys'))
     m = merge(left, right)
-    dmap = directorymap(m)
+    dmap = directory_map(m)
     dmap.columns = [c.replace('left', left_site).replace('right', right_site) 
                     for c in dmap.columns]
     dmap = dmap.reset_index(drop=True)
