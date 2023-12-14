@@ -213,4 +213,23 @@ def summary(filename1, filename2, ignore=None):
     print("-"*70)
     print("Table 2: Common directory mapping\n")
     print(tabulate.tabulate(dmap, headers='keys'))
-    #return df, dmap
+    print("-"*70)
+    print(f"Table 3: {left.site.upper()} prespective, per directory view\n")
+    c = cmp.reset_index()
+    def correct_gname(x, flip=False):
+        if 'modified' in x:
+            x = 'modified'
+        return x
+    dm = {}
+    for gname, group in c.groupby('rparent_left'):
+        summary = {correct_gname(_gname): f"{_g.shape[0]}" 
+                for _gname, _g in group.groupby('flag')}
+        summary['total'] = f"{group.shape[0]}"
+        dm[gname] = summary
+    r = pd.DataFrame(dm).transpose().sort_values(['identical', 'renamed']).fillna('-')
+    cols = r.columns
+    order = {'identical': 1, 'renamed': 2, 'modified': 3, 'unique': 4, 'total': 5}
+    cols = sorted(cols, key=order.get)
+    r = r[cols]
+    print(tabulate.tabulate(r, headers='keys'))
+    print("-"*70)
