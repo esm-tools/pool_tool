@@ -158,6 +158,72 @@ def summary(ignore, left, right):
     summary(left, right, ignore)
 
 
+@cli.command()
+@click.option('--ignore', help='ignores directory and files')
+@click.argument("left", required=True, type=click.Path())
+@click.argument("right", required=True, type=click.Path())
+def recommandations(ignore, left, right):
+    """Provides suggestion for preparing the target site pool directory for sync operations.
+
+    LEFT: csv file containing checksums of all files in the pool for a given project and HPC site.
+
+    RIGHT: similar file as LEFT but from different HPC site for the same project.
+    """
+    from analyse import read_csv, compare_compact, directory_map, merge
+    print("\nWARNING: Please be cautioned that this tool bears *NO* resposibility for any of the outcomes by executing the following actions.\n")
+    ld, ld_dups = read_csv(left, ignore=ignore)
+    rd, rd_dups = read_csv(right, ignore=ignore)
+    _, left_pool, left_site = left.split('_')
+    left_site, _ = os.path.splitext(left_site)
+    _, right_pool, right_site = right.split('_')
+    right_site, _ = os.path.splitext(right_site)
+    m = merge(ld, rd)
+    d = directory_map(m)
+    if not d.empty:
+        #print(d)
+        symlinks = []
+        pdirs = set()
+        prefix = rd.prefix.iloc[0]
+        print(f"\nOn {rd.site.upper()} site, do the following\n")
+        for row in d.itertuples():
+            symlinks.append(f"ln -s {os.path.join(prefix, row.rparent_right)} {os.path.join(prefix, row.rparent_left)}")
+            pdirs.add(os.path.dirname(row.rparent_left))
+        print("Create the following directories\n")
+        for _pdir in sorted(pdirs):
+            print(f"mkdir -p {os.path.join(prefix, _pdir)}")
+        print("\nNow create the symlinks (renaming instead of linking?) \n")
+        for ln in symlinks:
+            print(ln)
+    cmp = compare_compact(ld, rd, columns='fpath')
+    index = cmp.index.unique()
+    modified = []
+    if 'modified_latest_right' in index:
+        for row in cmp.loc['modified_latest_right'].itertuples():
+            line = f"mv {row.fpath_right} {row.fpath_right}_new"
+            modified.append(line)
+    if 'modified_latest_left' in index:
+        for row in cmp.loc['modified_latest_left'].itertuples():
+            line = f"cp {row.fpath_right} {row.fpath_right}_old"
+            modified.append(line)
+    if modified:
+        print("\nFound some modified files. To prevent them from getting over-written in a sync operation, rename them as follows\n")
+        for line in modified:
+            print(line)
+        print("\nPlease note that if files on the target site are newer compared to source site, they are suffixed with '_new'\n")
+        print(f"Now perform the rsync operation as directory structre on {rd.site.upper()} is complient to {ld.site.upper()}\n")
+        print(f"rsync -avz {ld.site}:{ld.prefix.iloc[0]} {rd.site}:{rd.prefix.iloc[0]}")
+        print("\nBeware of git repositories in the pools, exclude them in rsync command to preserve history if desired.\n")
+        print("\n")
+    
+        
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     cli()
 
