@@ -186,14 +186,16 @@ def recommandations(ignore, left, right):
         prefix = rd.prefix.iloc[0]
         print(f"\nOn {rd.site.upper()} site, do the following\n")
         for row in d.itertuples():
-            symlinks.append(f"ln -s {os.path.join(prefix, row.rparent_right)} {os.path.join(prefix, row.rparent_left)}")
-            pdirs.add(os.path.dirname(row.rparent_left))
-        print("Create the following directories\n")
-        for _pdir in sorted(pdirs):
-            print(f"mkdir -p {os.path.join(prefix, _pdir)}")
-        print("\nNow create the symlinks (renaming instead of linking?) \n")
-        for ln in symlinks:
-            print(ln)
+            if row.rparent_left != row.rparent_right:
+                symlinks.append(f"ln -s {os.path.join(prefix, row.rparent_right)} {os.path.join(prefix, row.rparent_left)}")
+                pdirs.add(os.path.dirname(row.rparent_left))
+        if pdirs:
+            print("Create the following directories (prep'ing for symlink, construct intermediate directories)\n")
+            for _pdir in sorted(pdirs):
+                print(f"mkdir -p {os.path.join(prefix, _pdir)}")
+            print("\nNow create the symlinks (renaming instead of linking?) \n")
+            for ln in symlinks:
+                print(ln)
     cmp = compare_compact(ld, rd, columns='fpath')
     index = cmp.index.unique()
     modified = []

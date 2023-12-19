@@ -188,19 +188,22 @@ def summary(filename1, filename2, ignore=None):
         'duplicate files': f"{right_dups.shape[0]} ({hsize(right_dups.fsize.sum())})"
     }
     cmp = compare(left, right)
-    identical = cmp.loc['identical']
-    dset[left_site]['identical files'] = f"{identical.shape[0]} ({hsize(identical.fsize_left.sum())})"
-    dset[right_site]['identical files'] = f"{identical.shape[0]} ({hsize(identical.fsize_right.sum())})"
-    renamed = cmp.loc['renamed']
-    dset[right_site]['renamed files'] = f"{renamed.shape[0]} ({hsize(renamed.fsize_left.sum())})"
+    if 'identical' in cmp.index:
+        identical = cmp.loc['identical']
+        dset[left_site]['identical files'] = f"{identical.shape[0]} ({hsize(identical.fsize_left.sum())})"
+        dset[right_site]['identical files'] = f"{identical.shape[0]} ({hsize(identical.fsize_right.sum())})"
+    if 'renamed' in cmp.index:
+        renamed = cmp.loc['renamed']
+        dset[right_site]['renamed files'] = f"{renamed.shape[0]} ({hsize(renamed.fsize_left.sum())})"
     if 'modified_latest_left' in cmp.index:
         modified = cmp.loc['modified_latest_left']
         dset[left_site]['modified files'] = f"{modified.shape[0]} ({hsize(modified.fsize_left.sum())})"
     if 'modified_latest_right' in cmp.index:
         modified = cmp.loc['modified_latest_right']
         dset[right_site]['modified files'] = f"{modified.shape[0]} ({hsize(modified.fsize_left.sum())})"
-    unique = cmp.loc['unique']
-    dset[left_site]['unique files'] = f"{unique.shape[0]} ({hsize(unique.fsize_left.sum())})"
+    if 'unique' in cmp.index:
+        unique = cmp.loc['unique']
+        dset[left_site]['unique files'] = f"{unique.shape[0]} ({hsize(unique.fsize_left.sum())})"
     df = pd.DataFrame(dset)
     print(f"Table 1: Summary with respect to {left_site.upper()} site\n")
     import tabulate
@@ -226,7 +229,10 @@ def summary(filename1, filename2, ignore=None):
                 for _gname, _g in group.groupby('flag')}
         summary['total'] = f"{group.shape[0]}"
         dm[gname] = summary
-    r = pd.DataFrame(dm).transpose().sort_values(['identical', 'renamed']).fillna('-')
+    try:
+        r = pd.DataFrame(dm).transpose().sort_values(['identical', 'renamed']).fillna('-')
+    except KeyError:
+        r = pd.DataFrame(dm).transpose().fillna('-')
     cols = r.columns
     order = {'identical': 1, 'renamed': 2, 'modified': 3, 'unique': 4, 'total': 5}
     cols = sorted(cols, key=order.get)
