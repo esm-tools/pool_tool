@@ -1,4 +1,5 @@
 import os
+import itertools
 import pandas as pd
 import humanize
 from collections import defaultdict
@@ -205,19 +206,23 @@ def summary(filename1, filename2, ignore=None):
         unique = cmp.loc['unique']
         dset[left_site]['unique files'] = f"{unique.shape[0]} ({hsize(unique.fsize_left.sum())})"
     df = pd.DataFrame(dset)
-    print(f"Table 1: Summary with respect to {left_site.upper()} site\n")
+    table_no = itertools.count(1)
+    print(f"\nTable {next(table_no)}: Summary with respect to {left_site.upper()} site\n")
+    
     import tabulate
     print(tabulate.tabulate(df, headers='keys'))
     m = merge(left, right)
     dmap = directory_map(m)
-    dmap.columns = [c.replace('left', left_site).replace('right', right_site) 
+    dmap = dmap[dmap.rparent_left != dmap.rparent_right]
+    print("-"*70)
+    if not dmap.empty:
+        dmap.columns = [c.replace('left', left_site).replace('right', right_site) 
                     for c in dmap.columns]
-    dmap = dmap.reset_index(drop=True)
-    print("-"*70)
-    print("Table 2: Common directory mapping\n")
-    print(tabulate.tabulate(dmap, headers='keys'))
-    print("-"*70)
-    print(f"Table 3: {left.site.upper()} prespective, per directory view\n")
+        dmap = dmap.reset_index(drop=True)
+        print(f"\nTable {next(table_no)}: Common directory mapping\n")
+        print(tabulate.tabulate(dmap, headers='keys'))
+        print("-"*70)
+    
     c = cmp.reset_index()
     def correct_gname(x, flip=False):
         if 'modified' in x:
@@ -230,12 +235,13 @@ def summary(filename1, filename2, ignore=None):
         summary['total'] = f"{group.shape[0]}"
         dm[gname] = summary
     try:
-        r = pd.DataFrame(dm).transpose().sort_values(['identical', 'renamed']).fillna('-')
+        r = pd.DataFrame(dm).transpose().sort_values(['identical', 'renamed'])#.fillna('-')
     except KeyError:
-        r = pd.DataFrame(dm).transpose().fillna('-')
+        r = pd.DataFrame(dm).transpose()#.fillna('-')
     cols = r.columns
-    order = {'identical': 1, 'renamed': 2, 'modified': 3, 'unique': 4, 'total': 5}
+    order = {'modified': 1, 'identical': 3, 'renamed': 2, 'unique': 4, 'total': 5}
     cols = sorted(cols, key=order.get)
     r = r[cols]
-    print(tabulate.tabulate(r, headers='keys'))
+    print(f"\nTable {next(table_no)}: {left.site.upper()} prespective, per directory associations\n")
+    print(tabulate.tabulate(r.sort_values(by=cols[:3]).fillna('-'), headers='keys'))
     print("-"*70)

@@ -23,6 +23,7 @@ setup(
         "tabulate",
         "pandas",
         "pyarrow",
+        "imohash",
     ],
     entry_points="""
         [console_scripts]
