@@ -16,6 +16,11 @@ levante:
       output: ~/checksum_echam_levante.csv
       ignore:
       - .git
+    jsbach:
+      path: /pool/data/JSBACH
+      output: ~/checksum_jsbach_levante.csv
+      ignore:
+      - .git
   slurm:
     -A: ab0246
     -p: compute
@@ -32,6 +37,11 @@ albedo:
     echam:
       path: /albedo/pool/ECHAM6
       output: ~/checksum_echam_albedo.csv
+      ignore:
+      - .git
+    jsbach:
+      path: /albedo/pool/JSBACH
+      output: ~/checksum_jsbach_albedo.csv
       ignore:
       - .git
   slurm:
