@@ -67,10 +67,9 @@ def config(showall, site, pool):
 
 @cli.command()
 @click.option("-f", "--filename", help="name of the run script")
-@click.option("-c", "--checksum", type=click.Choice(['md5', 'sha1', 'sha256']), required=False, default='md5')
 @click.argument("site", type=click.Choice(sites), required=True)
 @click.argument("pool", type=click.Choice(pools), required=True)
-def runscript(filename, checksum, site, pool):
+def runscript(filename, site, pool):
     "makes run script for job submission"
     if site not in sites:
         raise ValueError(f"mismatch site '{site}'. Possible values: {sites}")
@@ -78,11 +77,9 @@ def runscript(filename, checksum, site, pool):
         raise ValueError(f"mismatch pool '{pool}'. Possible values: {pools}")
     c = conf[site]
     c_pool = c['pool'][pool]
-    c_pool['checksum'] = checksum
-    print(c_pool)
     c_slurm = c['slurm']
-    c_extras = c['extras']
-    c_extras = "\n".join(c_extras)
+    c_ignore = ",".join(c_pool['ignore']) if c_pool['ignore'] else ''
+    c_extras = "\n".join(c['extras'])
     c_conf_str = yaml.dump(c_pool, default_flow_style=True, width=float("inf")).replace("\n", "")
     slurm_directives = process_slurm_directives(c_slurm)
     content = f"""#!/bin/bash
@@ -91,11 +88,7 @@ def runscript(filename, checksum, site, pool):
 
 {c_extras}
 
-export POOL_SITE={site}
-export POOL_NAME={pool}
-export POOL_CONF="{c_conf_str}"
-
-python checksums.py
+python checksums.py {c_pool['path']} --outfile {c_pool['outfile']} --ignore {c_ignore!r} 
 """
     if not filename:
         filename = f"{pool}_{site}.sh"
