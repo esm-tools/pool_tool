@@ -11,6 +11,11 @@ levante:
       output: ~/checksum_fesom1_levante.csv
       ignore:
       - .git
+    echam:
+      path: /pool/data/ECHAM6
+      output: ~/checksum_echam_levante.csv
+      ignore:
+      - .git
   slurm:
     -A: ab0246
     -p: compute
@@ -24,10 +29,15 @@ albedo:
       output: ~/checksum_fesom2_albedo.csv
       ignore:
       - .git
+    echam:
+      path: /albedo/pool/ECHAM6
+      output: ~/checksum_echam_albedo.csv
+      ignore:
+      - .git
   slurm:
     --mem: 100GB
     --qos: 12h
     -p: mpp
     -t: '3:00:00'
   extras:
-  - "module load analysis-toolbox/03.2023" 
+  - "module load analysis-toolbox/03.2023"
