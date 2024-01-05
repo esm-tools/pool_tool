@@ -14,6 +14,10 @@ not_hidden_files_or_dirs = re.compile(r'^[^.]').match
 
 
 def ignore_re(ignore):
+    """drops files and folders with the matching pattern.
+    `ignore` accepts comma seperated values for matching multiple patterns.
+    defaults to None if not provided.
+    """
     if not ignore:
         return lambda x: False
     pats = ignore.split(',')
@@ -28,6 +32,7 @@ def ignore_re(ignore):
 
 @contextmanager
 def timethis(msg=''):
+    "measures execution time for a given operation"
     st = time.time()
     yield
     elapsed = time.time() - st
@@ -38,10 +43,12 @@ def timethis(msg=''):
 
 
 def hasher(filename):
+    "Calucates imohash for a given file"
     return f"imohash:{hashfile(filename, hexdigest=True)}"
 
 
 def stats(fpath, stat=os.stat):
+    "Generates record with imohash and file stats information"
     try:
         checksum = hasher(fpath)
         st = stat(fpath)
@@ -53,6 +60,8 @@ def stats(fpath, stat=os.stat):
 
 
 def scanner(path, ignore=None, drop_hidden_files=True):
+    """Produces iterator object which recursively scans a path.
+    Silimar to os.walk but better in performance."""
     path = os.path.expanduser(path)
     dirs = []
     to_ignore = ignore_re(ignore)
@@ -81,11 +90,13 @@ def scanner(path, ignore=None, drop_hidden_files=True):
 
 
 def get_files(path, ignore=None, drop_hidden_files=True):
+    "Wrapper around scanner method to produce a list of files instead of iterator"
     files_iter = scanner(path, ignore=ignore, drop_hidden_files=drop_hidden_files)
     return list(files_iter)
 
 
 def main(pool, path, outfile, ignore=None):
+    "Calculates hashs of all the files in parallel"
     print("Gathering files...")
     with timethis('getting files'):
         if os.path.isdir(path):
@@ -101,7 +112,7 @@ def main(pool, path, outfile, ignore=None):
         for i, item in enumerate(futures):
             if not item.startswith('-'):
                 results.append(item)
-            print(f"{i:>6d} {item}")
+            # print(f"{i:>6d} {item}")
     results = "\n".join(results)
     print(f"Writing results to {outfile.name}")
     outfile.writelines(results)
