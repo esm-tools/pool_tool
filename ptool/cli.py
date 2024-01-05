@@ -116,7 +116,7 @@ def compare(outfile, fileformat, fullpath, ignore, left, right):
 
     RIGHT: similar file as LEFT but from different HPC site for the same project.
     """
-    from analyse import read_csv, compare_compact, compare_directory_view
+    from .analyse import read_csv, compare_compact, compare_directory_view
     ld, ld_dups = read_csv(left, ignore=ignore)
     lr, lr_dups = read_csv(right, ignore=ignore)
     if fileformat == 'yaml':
@@ -147,7 +147,7 @@ def summary(ignore, left, right):
 
     RIGHT: similar file as LEFT but from different HPC site for the same project.
     """
-    from analyse import summary
+    from .analyse import summary
     summary(left, right, ignore)
 
 
@@ -162,7 +162,7 @@ def recommandations(ignore, left, right):
 
     RIGHT: similar file as LEFT but from different HPC site for the same project.
     """
-    from analyse import read_csv, compare_compact, directory_map, merge
+    from .analyse import read_csv, compare_compact, directory_map, merge
     print("\nWARNING: Please be cautioned that this tool bears *NO* resposibility for any of the outcomes by executing the following actions.\n")
     ld, ld_dups = read_csv(left, ignore=ignore)
     rd, rd_dups = read_csv(right, ignore=ignore)
