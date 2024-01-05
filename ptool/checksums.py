@@ -8,13 +8,14 @@ import click
 from imohash import hashfile
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
-from itertools import filterfalse
 
 
-drop_hidden_files_or_dirs = re.compile(r'^[^.]').match
+not_hidden_files_or_dirs = re.compile(r'^[^.]').match
 
 
 def ignore_re(ignore):
+    if not ignore:
+        return lambda x: False
     pats = ignore.split(',')
     res = []
     for i in pats:
@@ -36,10 +37,6 @@ def timethis(msg=''):
         print(f"Elapsed {elapsed:.2f}s")
 
 
-def onerror(e):
-    print(f"ERROR: {e}")
-
-
 def hasher(filename):
     return f"imohash:{hashfile(filename, hexdigest=True)}"
 
@@ -55,20 +52,37 @@ def stats(fpath, stat=os.stat):
     return record
 
 
-def get_files(topdir, ignore=None, drop_hidden=drop_hidden_files_or_dirs):
-    all_files = []
-    if ignore:
-        pat = ignore_re(ignore)
-    for root, dirs, files in os.walk(topdir, onerror=onerror):
-        dirs[:] = list(filter(drop_hidden, dirs))
-        files = list(filter(drop_hidden, files))
-        if ignore:
-            dirs[:] = list(filterfalse(pat, dirs))
-            files = list(filterfalse(pat, files))
-        files = [os.path.join(root, f) for f in files]
-        if files:
-            all_files.extend(files)
-    return all_files
+def scanner(path, ignore=None, drop_hidden_files=True):
+    path = os.path.expanduser(path)
+    dirs = []
+    to_ignore = ignore_re(ignore)
+    for i in os.scandir(path):
+        if i.is_file() and (not to_ignore(i.name)):
+            if drop_hidden_files:
+                if not_hidden_files_or_dirs(i.name):
+                    yield i.path
+            else:
+                yield i.path
+        elif i.is_dir() and (not to_ignore(i.name)):
+            if not_hidden_files_or_dirs(i.name):
+                dirs.append(i.path)
+        elif i.is_symlink():
+            try:
+                i.stat()
+            except FileNotFoundError:
+                print(f'skipping.. {i.path} -> {os.readlink(i.path)}')
+            else:
+                if os.path.isdir(i.path):
+                    dirs.append(i.path)
+                elif os.path.isfile(i.path):
+                    yield i.path
+    for d in dirs:
+        yield from scanner(d, ignore, drop_hidden_files)
+
+
+def get_files(path, ignore=None, drop_hidden_files=True):
+    files_iter = scanner(path, ignore=ignore, drop_hidden_files=drop_hidden_files)
+    return list(files_iter)
 
 
 def main(pool, path, outfile, ignore=None):
