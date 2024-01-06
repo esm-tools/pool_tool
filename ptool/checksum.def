@@ -1,0 +1,13 @@
+BootStrap: docker
+From: python:3.11-slim-bookworm
+
+%files
+  checksums.py /
+
+%post
+  pip install imohash
+  pip install click
+
+%runscript
+  python3 /checksums.py "$@"
+
