@@ -95,12 +95,12 @@ def get_files(path, ignore=None, drop_hidden_files=True):
     return list(files_iter)
 
 
-def main(pool, path, outfile, ignore=None):
+def main(pool, path, outfile, ignore=None, drop_hidden_files=True):
     "Calculates hashs of all the files in parallel"
     print("Gathering files...")
     with timethis('getting files'):
         if os.path.isdir(path):
-            files = get_files(path, ignore=ignore)
+            files = get_files(path, ignore=ignore, drop_hidden_files=drop_hidden_files)
         else:
             files = [path]
     nfiles = len(files)
@@ -119,10 +119,11 @@ def main(pool, path, outfile, ignore=None):
 
 
 @click.command()
-@click.option("--ignore", default=None, help='ignore dirs or files')
+@click.option("--drop-hidden-files/--no-drop-hidden-files", default=True, is_flag=True, show_default=True, help='ignore hidden files')
+@click.option("--ignore", default=None, show_default=True, help='ignore dirs or files')
 @click.option("--outfile", type=click.File('w'), default='-', help="output filename")
 @click.argument("path")
-def cli(path, outfile, ignore):
+def cli(path, outfile, ignore, drop_hidden_files):
     """path to file or folder.
 
     Calculates imohash checksum of file(s) at the given path.
@@ -130,7 +131,7 @@ def cli(path, outfile, ignore):
     """
     path = os.path.expanduser(path)
     pool = ProcessPoolExecutor(max_workers=os.cpu_count())
-    main(pool, path=path, outfile=outfile, ignore=ignore)
+    main(pool, path=path, outfile=outfile, ignore=ignore, drop_hidden_files=drop_hidden_files)
 
 
 if __name__ == "__main__":
