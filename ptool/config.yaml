@@ -1,0 +1,53 @@
+levante:
+  pool:
+    fesom2:
+      path: /pool/data/AWICM/FESOM2
+      outfile: ~/checksum_fesom2_levante.csv
+      ignore:
+      - .git
+      - __pycache__
+    fesom:
+      path: /pool/data/AWICM/FESOM1
+      outfile: ~/checksum_fesom1_levante.csv
+      ignore:
+      - .git
+    echam:
+      path: /pool/data/ECHAM6
+      outfile: ~/checksum_echam_levante.csv
+      ignore:
+      - .git
+    jsbach:
+      path: /pool/data/JSBACH
+      outfile: ~/checksum_jsbach_levante.csv
+      ignore:
+      - .git
+  slurm:
+    -A: ab0246
+    -p: compute
+    -t: '3:00:00'
+  extras:
+  - "module load python3/2023.01-gcc-11.2.0"
+albedo:
+  pool:
+    fesom2:
+      path: /albedo/pool/FESOM2
+      outfile: ~/checksum_fesom2_albedo.csv
+      ignore:
+      - .git
+    echam:
+      path: /albedo/pool/ECHAM6
+      outfile: ~/checksum_echam_albedo.csv
+      ignore:
+      - .git
+    jsbach:
+      path: /albedo/pool/JSBACH
+      outfile: ~/checksum_jsbach_albedo.csv
+      ignore:
+      - .git
+  slurm:
+    --mem: 100GB
+    --qos: 12h
+    -p: mpp
+    -t: '3:00:00'
+  extras:
+  - "module load analysis-toolbox/03.2023"
