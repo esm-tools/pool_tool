@@ -10,7 +10,7 @@ from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
 
 
-not_hidden_files_or_dirs = re.compile(r'^[^.]').match
+not_hidden_files_or_dirs = re.compile(r"^[^.]").match
 
 
 def ignore_re(ignore):
@@ -20,18 +20,18 @@ def ignore_re(ignore):
     """
     if not ignore:
         return lambda x: False
-    pats = ignore.split(',')
+    pats = ignore.split(",")
     res = []
     for i in pats:
-        if i.startswith('*'):
-            i = '.' + i
+        if i.startswith("*"):
+            i = "." + i
         res.append(i)
     pats = "|".join(res)
     return re.compile(pats).search
 
 
 @contextmanager
-def timethis(msg=''):
+def timethis(msg=""):
     "measures execution time for a given operation"
     st = time.time()
     yield
@@ -79,7 +79,7 @@ def scanner(path, ignore=None, drop_hidden_files=True):
             try:
                 i.stat()
             except FileNotFoundError:
-                print(f'skipping.. {i.path} -> {os.readlink(i.path)}')
+                print(f"skipping.. {i.path} -> {os.readlink(i.path)}")
             else:
                 if os.path.isdir(i.path):
                     dirs.append(i.path)
@@ -98,7 +98,7 @@ def get_files(path, ignore=None, drop_hidden_files=True):
 def main(pool, path, outfile, ignore=None, drop_hidden_files=True):
     "Calculates hashs of all the files in parallel"
     print("Gathering files...")
-    with timethis('getting files'):
+    with timethis("getting files"):
         if os.path.isdir(path):
             files = get_files(path, ignore=ignore, drop_hidden_files=drop_hidden_files)
         else:
@@ -107,10 +107,10 @@ def main(pool, path, outfile, ignore=None, drop_hidden_files=True):
     print(f"nfiles: {nfiles}")
     results = ["checksum,fsize,mtime,fpath"]
     print("Calculating hashes...")
-    with timethis('calculating hashes'):
+    with timethis("calculating hashes"):
         futures = pool.map(stats, files, chunksize=10)
         for i, item in enumerate(futures):
-            if not item.startswith('-'):
+            if not item.startswith("-"):
                 results.append(item)
             # print(f"{i:>6d} {item}")
     results = "\n".join(results)
@@ -119,9 +119,15 @@ def main(pool, path, outfile, ignore=None, drop_hidden_files=True):
 
 
 @click.command()
-@click.option("--drop-hidden-files/--no-drop-hidden-files", default=True, is_flag=True, show_default=True, help='ignore hidden files')
-@click.option("--ignore", default=None, show_default=True, help='ignore dirs or files')
-@click.option("--outfile", type=click.File('w'), default='-', help="output filename")
+@click.option(
+    "--drop-hidden-files/--no-drop-hidden-files",
+    default=True,
+    is_flag=True,
+    show_default=True,
+    help="ignore hidden files",
+)
+@click.option("--ignore", default=None, show_default=True, help="ignore dirs or files")
+@click.option("--outfile", type=click.File("w"), default="-", help="output filename")
 @click.argument("path")
 def cli(path, outfile, ignore, drop_hidden_files):
     """path to file or folder.
@@ -131,7 +137,13 @@ def cli(path, outfile, ignore, drop_hidden_files):
     """
     path = os.path.expanduser(path)
     pool = ProcessPoolExecutor(max_workers=os.cpu_count())
-    main(pool, path=path, outfile=outfile, ignore=ignore, drop_hidden_files=drop_hidden_files)
+    main(
+        pool,
+        path=path,
+        outfile=outfile,
+        ignore=ignore,
+        drop_hidden_files=drop_hidden_files,
+    )
 
 
 if __name__ == "__main__":
