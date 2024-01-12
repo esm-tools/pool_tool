@@ -198,7 +198,7 @@ def compare_directory_view(left, right, fullpath=False, relabel=True):
     return dict(dm)
 
 
-def summary(filename1, filename2, ignore=None):
+def summary(filename1, filename2, ignore=None, compact=False):
     left, left_dups = read_csv(filename1, ignore=ignore)
     right, right_dups = read_csv(filename2, ignore=ignore)
     _, left_pool, left_site = filename1.split("_")
@@ -298,8 +298,14 @@ def summary(filename1, filename2, ignore=None):
     order = {"modified": 1, "identical": 3, "renamed": 2, "unique": 4, "total": 5}
     cols = sorted(cols, key=order.get)
     r = r[cols]
+    if compact:
+        try:
+            r = r[~r[r.columns.drop(["unique", "total"])].isna().all(axis=1)]
+        except KeyError:
+            pass
     print(
         f"\nTable {next(table_no)}: {left.site.upper()} prespective, per directory associations\n"
     )
     print(tabulate.tabulate(r.sort_values(by=cols[:3]).fillna("-"), headers="keys"))
     print("-" * 70)
+    return r
