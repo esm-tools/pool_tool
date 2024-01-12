@@ -25,6 +25,7 @@ disclaimer = """
 
 """
 
+
 def process_slurm_directives(d):
     result = []
     for key, val in d.items():
@@ -170,9 +171,16 @@ def compare(outfile, fileformat, fullpath, ignore, left, right):
 
 @cli.command()
 @click.option("--ignore", help="ignores directory and files")
+@click.option(
+    "--compact",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="shortern table by ignoring `unique` only association",
+)
 @click.argument("left", required=True, type=click.Path())
 @click.argument("right", required=True, type=click.Path())
-def summary(ignore, left, right):
+def summary(ignore, compact, left, right):
     """Prints a short summary by analysing csv files.
 
     LEFT: csv file containing checksums of all files in the pool for a given project and HPC site.
@@ -181,40 +189,49 @@ def summary(ignore, left, right):
     """
     from .analyse import summary
 
-    summary(left, right, ignore)
+    summary(left, right, ignore, compact)
 
 
 def sanitise(host, path):
     "sanitise the hostpart of the path"
-    if (not host) or ('awi.de' in host):
+    if (not host) or ("awi.de" in host):
         return path
     return f"{host}:{path}"
 
 
 @cli.command()
 @click.option("--ignore", help="ignores directory and files")
-@click.option("--flags", "Flag", type=click.Choice(['unique', 'modified', 'both']), default='both', help="association type to include")
+@click.option(
+    "--flags",
+    "Flag",
+    type=click.Choice(["unique", "modified", "both"]),
+    default="both",
+    help="association type to include",
+)
 @click.argument("left", required=True, type=click.Path())
 @click.argument("right", required=True, type=click.Path())
 def prepare_rsync(ignore, Flag, left, right):
-    """Prepares rsync commands for the transfer.
-    
-    """
-    if Flag == 'both':
-        Flag = {'unique', 'modified_latest_left'}
-    elif Flag == 'modified':
-        Flag = {'modified_latest_left', }
+    """Prepares rsync commands for the transfer."""
+    if Flag == "both":
+        Flag = {"unique", "modified_latest_left"}
+    elif Flag == "modified":
+        Flag = {
+            "modified_latest_left",
+        }
     else:
-        Flag = {'unique', }
+        Flag = {
+            "unique",
+        }
     from .analyse import read_csv, compare, compare_compact, directory_map, merge
+
     ld, ld_dups = read_csv(left, ignore=ignore)
     rd, rd_dups = read_csv(right, ignore=ignore)
     _, left_pool, left_site = left.split("_")
     left_site, _ = os.path.splitext(left_site)
     _, right_pool, right_site = right.split("_")
     right_site, _ = os.path.splitext(right_site)
-    left_host = conf[left_site]['host']
-    right_host = conf[right_site]['host']
+    left_host = conf[left_site]["host"]
+    right_host = conf[right_site]["host"]
     dm = dict(directory_map(merge(ld, rd)).values)
     c = compare(ld, rd)
     fmap = {}
@@ -222,21 +239,21 @@ def prepare_rsync(ignore, Flag, left, right):
     syncs.append(disclaimer)
     prefix_left = c.prefix_left.dropna().iloc[0]
     prefix_right = c.prefix_right.dropna().iloc[0]
-    for name, grp in c.groupby('rparent_left'):
+    for name, grp in c.groupby("rparent_left"):
         use_relative = True
         if name in dm:
             use_relative = False
         filelist = []
         grp = grp.reset_index()
         flags = set(grp.flag.unique())
-        if ('unique' in flags) and ('unique' in Flag):
-            g = grp[grp.flag == 'unique']
+        if ("unique" in flags) and ("unique" in Flag):
+            g = grp[grp.flag == "unique"]
             if use_relative:
                 filelist.extend(list(g.rpath_left))
             else:
                 filelist.extend(list(g.fname_left))
-        if ('modified_latest_left' in flags) and ('modified_latest_left' in Flag):
-            g = grp[grp.flag == 'modified_latest_left']
+        if ("modified_latest_left" in flags) and ("modified_latest_left" in Flag):
+            g = grp[grp.flag == "modified_latest_left"]
             if use_relative:
                 filelist.extend(list(g.rpath_left))
             else:
@@ -245,11 +262,11 @@ def prepare_rsync(ignore, Flag, left, right):
             fid = str(uuid.uuid4())[:8]
             fmap[fid] = filelist
             if use_relative:
-                sync = f'rsync -av --files-from=flist/{fid} {sanitise(left_host, prefix_left)} {sanitise(right_host, prefix_right)}'
+                sync = f"rsync -av --files-from=flist/{fid} {sanitise(left_host, prefix_left)} {sanitise(right_host, prefix_right)}"
             else:
                 rparent_left = name
                 rparent_right = dm[name]
-                sync = f'rsync -av --files-from=flist/{fid} {sanitise(left_host, prefix_left)}{rparent_left}/ {sanitise(right_host, prefix_right)}{rparent_right}/'
+                sync = f"rsync -av --files-from=flist/{fid} {sanitise(left_host, prefix_left)}{rparent_left}/ {sanitise(right_host, prefix_right)}{rparent_right}/"
             syncs.append(f"\n# {name}")
             syncs.append(sync)
     syncs = "\n".join(syncs)
@@ -261,7 +278,6 @@ def prepare_rsync(ignore, Flag, left, right):
             fnames = "\n".join(fnames)
             fid.writelines(fnames)
     print("Created sync_cmd.sh")
-    
 
 
 if __name__ == "__main__":
