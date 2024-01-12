@@ -27,6 +27,7 @@ levante:
     -t: '3:00:00'
   extras:
   - "module load python3/2023.01-gcc-11.2.0"
+  host: a270243@levante.dkrz.de  # username@hostname
 albedo:
   pool:
     fesom2:
@@ -51,3 +52,5 @@ albedo:
     -t: '3:00:00'
   extras:
   - "module load analysis-toolbox/03.2023"
+  # here host info is not used as connection to albedo from outside is not possible
+  host: ""
