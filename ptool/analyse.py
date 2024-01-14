@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 
-def read_csv(filename, ignore=None):
+def read_csv(filename, ignore=None, drop_duplicates=False):
     df = pd.read_csv(filename, engine="pyarrow")
     df = df.rename(columns={"fname": "fpath"})
     df = df[df.checksum != "-"]
@@ -29,12 +29,13 @@ def read_csv(filename, ignore=None):
     if ignore:
         df = df[~df.rparent.str.contains(ignore)]
         df = df[~df.fname.str.contains(ignore)]
+    df = df.sort_values(by=["checksum", "mtime"])
     dups = df[
-        df.sort_values(by=["checksum", "mtime"]).duplicated(subset="checksum").values
+        df.duplicated(subset=["checksum", "fname"]).values
     ]
-    df = df.sort_values(by=["checksum", "mtime"]).drop_duplicates(subset="checksum")
+    if drop_duplicates:
+        df = df.drop_duplicates(subset=["checksum", "fname"])
     df["mtime"] = pd.to_datetime(df["mtime"], unit="s")
-    dups["mtime"] = pd.to_datetime(dups["mtime"], unit="s")
     _, pool, site = filename.split("_")
     site, _ = os.path.splitext(site)
     df.filename = filename
