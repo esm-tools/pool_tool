@@ -23,6 +23,7 @@ setup(
         "pandas",
         "pyarrow",
         "imohash",
+        "paramiko",
     ],
     entry_points="""
         [console_scripts]

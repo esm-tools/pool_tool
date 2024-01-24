@@ -127,7 +127,9 @@ def main(pool, path, outfile, ignore=None, drop_hidden_files=True):
     help="ignore hidden files",
 )
 @click.option("--ignore", default=None, show_default=True, help="ignore dirs or files")
-@click.option("--outfile", type=click.File("w"), default="-", help="output filename")
+@click.option(
+    "-o", "--outfile", type=click.File("w"), default="-", help="output filename"
+)
 @click.argument("path")
 def cli(path, outfile, ignore, drop_hidden_files):
     """path to file or folder.
