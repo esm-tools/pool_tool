@@ -4,11 +4,8 @@ import click
 import yaml
 import pathlib
 from pprint import pprint
+from . import conf
 
-
-config_file = os.path.join(os.path.dirname(__file__), "config.yaml")
-with open(config_file) as fid:
-    conf = yaml.safe_load(fid)
 
 sites = list(conf)
 pools = {p for site in sites for p in conf[site]["pool"]}
