@@ -25,8 +25,7 @@ levante:
     -A: ab0246
     -p: compute
     -t: '3:00:00'
-  extras:
-  - "module load python3/2023.01-gcc-11.2.0"
+  python_executable: ~/miniforge3/envs/hasher/bin/python
   host: a270243@levante.dkrz.de  # username@hostname
 albedo:
   pool:
@@ -50,7 +49,6 @@ albedo:
     --qos: 12h
     -p: mpp
     -t: '3:00:00'
-  extras:
-  - "module load analysis-toolbox/03.2023"
+  python_executable: ~/cs/bin/python
   # here host info is not used as connection to albedo from outside is not possible
-  host: ""
+  host: pasili001@albedo0.dmawi.de

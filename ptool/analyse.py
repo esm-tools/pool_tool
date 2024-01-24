@@ -1,6 +1,7 @@
 import os
 import itertools
 import pandas as pd
+import numpy as np
 import humanize
 from collections import defaultdict
 
@@ -16,11 +17,12 @@ __all__ = [
 
 
 def read_csv(filename, ignore=None, drop_duplicates=False):
+    filename = os.path.expanduser(filename)
     df = pd.read_csv(filename, engine="pyarrow")
     df = df.rename(columns={"fname": "fpath"})
     df = df[df.checksum != "-"]
     df["fname"] = df.fpath.apply(os.path.basename)
-    df["prefix"] = os.path.commonprefix(list(df.fpath))
+    df["prefix"] = os.path.commonprefix(list(df.fpath.apply(os.path.dirname)))
     df["rpath"] = df.fpath.str.removeprefix(df.prefix[0])
     df["rparent"] = df.rpath.apply(os.path.dirname)
     for name, dtype in df.dtypes.items():
@@ -32,11 +34,13 @@ def read_csv(filename, ignore=None, drop_duplicates=False):
     df = df.sort_values(by=["checksum", "mtime"])
     dups = df[
         df.duplicated(subset=["checksum", "fname"]).values
+        # df.duplicated(subset=["checksum"]).values
     ]
     if drop_duplicates:
         df = df.drop_duplicates(subset=["checksum", "fname"])
+        # df = df.drop_duplicates(subset=["checksum"])
     df["mtime"] = pd.to_datetime(df["mtime"], unit="s")
-    _, pool, site = filename.split("_")
+    _, pool, site = os.path.basename(filename).split("_")
     site, _ = os.path.splitext(site)
     df.filename = filename
     df.pool = pool
@@ -68,7 +72,7 @@ def directory_map(m):
     return (m[["rparent_left", "rparent_right"]]).drop_duplicates()
 
 
-def compare(left, right, relabel=False):
+def compare(left, right, relabel=False, threshold=0.1):
     by_hash = merge(left, right)
     by_name = merge(left, right, on="fname")
     by_hash["flag"] = ""
@@ -132,6 +136,12 @@ def compare(left, right, relabel=False):
         "unique": 5,
     }
     results = pd.concat([results[key] for key in sorted(results, key=order.get)])
+    if threshold:
+        results = _correct_false_positive(results, threshold=threshold)
+    # The following drop_duplicates makes sure that there is
+    # always 1:1 mapping of files. More precisely it eliminates
+    # many:1 mapping.
+    results = results.drop_duplicates("rpath_left")
     if relabel:
         newcols = [
             c.replace("left", left.site).replace("right", right.site)
@@ -141,8 +151,40 @@ def compare(left, right, relabel=False):
     return results
 
 
-def compare_compact(left, right, columns="rpath", relabel=False):
-    df = compare(left, right)
+def _correct_false_positive(df, threshold=0.1):
+    dfs = []
+    partial_dfs = []
+    right_cols = [c for c in df.columns if c.endswith("right")]
+    # default = df.loc['unique'][right_cols].iloc[0].values
+    for name, grp in df.groupby("rparent_left"):
+        val_counts = dict(grp.index.value_counts())
+        total_count = sum(val_counts.values())
+        if "unique" in val_counts:
+            val_counts.pop("unique")
+        partial_count = sum(val_counts.values())
+        if partial_count and partial_count <= threshold * total_count:
+            grp.index = [
+                "unique",
+            ] * grp.index.size
+            grp[right_cols] = ""
+            partial_dfs.append(grp)
+        else:
+            dfs.append(grp)
+    df = pd.concat(dfs)
+    if partial_dfs:
+        df = pd.concat(
+            [
+                df,
+            ]
+            + partial_dfs
+        )
+    df = df.replace(r"^\s*$", np.nan, regex=True)
+    df.index = df.index.set_names("flag")
+    return df
+
+
+def compare_compact(left, right, columns="rpath", threshold=0.1, relabel=False):
+    df = compare(left, right, threshold=threshold)
     if isinstance(columns, str):
         columns = columns.split(",")
     cols = []
@@ -199,9 +241,20 @@ def compare_directory_view(left, right, fullpath=False, relabel=True):
     return dict(dm)
 
 
-def summary(filename1, filename2, ignore=None, compact=False):
-    left, left_dups = read_csv(filename1, ignore=ignore)
-    right, right_dups = read_csv(filename2, ignore=ignore)
+def summary(
+    filename1,
+    filename2,
+    ignore=None,
+    compact=False,
+    drop_duplicates=False,
+    threshold=0.1,
+):
+    left, left_dups = read_csv(
+        filename1, ignore=ignore, drop_duplicates=drop_duplicates
+    )
+    right, right_dups = read_csv(
+        filename2, ignore=ignore, drop_duplicates=drop_duplicates
+    )
     _, left_pool, left_site = filename1.split("_")
     left_site, _ = os.path.splitext(left_site)
     _, right_pool, right_site = filename2.split("_")
@@ -222,9 +275,9 @@ def summary(filename1, filename2, ignore=None, compact=False):
         "files": f"{right.shape[0]} ({hsize(right.fsize.sum())})",
         "duplicate files": f"{right_dups.shape[0]} ({hsize(right_dups.fsize.sum())})",
     }
-    cmp = compare(left, right)
+    cmp = compare(left, right, threshold=threshold)
     if "identical" in cmp.index:
-        identical = cmp.loc["identical"]
+        identical = cmp.loc[["identical"]]
         dset[left_site][
             "identical files"
         ] = f"{identical.shape[0]} ({hsize(identical.fsize_left.sum())})"
@@ -232,12 +285,12 @@ def summary(filename1, filename2, ignore=None, compact=False):
             "identical files"
         ] = f"{identical.shape[0]} ({hsize(identical.fsize_right.sum())})"
     if "renamed" in cmp.index:
-        renamed = cmp.loc["renamed"]
+        renamed = cmp.loc[["renamed"]]
         dset[right_site][
             "renamed files"
         ] = f"{renamed.shape[0]} ({hsize(renamed.fsize_left.sum())})"
     if "modified_latest_left" in cmp.index:
-        modified = cmp.loc["modified_latest_left"]
+        modified = cmp.loc[["modified_latest_left"]]
         dset[left_site][
             "modified files"
         ] = f"{modified.shape[0]} ({hsize(modified.fsize_left.sum())})"
@@ -247,7 +300,7 @@ def summary(filename1, filename2, ignore=None, compact=False):
             "modified files"
         ] = f"{modified.shape[0]} ({hsize(modified.fsize_left.sum())})"
     if "unique" in cmp.index:
-        unique = cmp.loc["unique"]
+        unique = cmp.loc[["unique"]]
         dset[left_site][
             "unique files"
         ] = f"{unique.shape[0]} ({hsize(unique.fsize_left.sum())})"
@@ -261,8 +314,9 @@ def summary(filename1, filename2, ignore=None, compact=False):
 
     print(tabulate.tabulate(df, headers="keys"))
     m = merge(left, right)
-    dmap = directory_map(m)
-    dmap = dmap[dmap.rparent_left != dmap.rparent_right]
+    # dmap = directory_map(m)
+    # dmap = dmap[dmap.rparent_left != dmap.rparent_right]
+    dmap = (cmp[["rparent_left", "rparent_right"]]).dropna().drop_duplicates()
     print("-" * 70)
     if not dmap.empty:
         dmap.columns = [
@@ -305,7 +359,7 @@ def summary(filename1, filename2, ignore=None, compact=False):
         except KeyError:
             pass
     print(
-        f"\nTable {next(table_no)}: {left.site.upper()} prespective, per directory associations\n"
+        f"\nTable {next(table_no)}: {left.site.upper()} perspective, per directory associations\n"
     )
     print(tabulate.tabulate(r.sort_values(by=cols[:3]).fillna("-"), headers="keys"))
     print("-" * 70)

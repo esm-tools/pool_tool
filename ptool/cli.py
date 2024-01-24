@@ -94,7 +94,7 @@ def runscript(filename, site, pool):
     c_pool = c["pool"][pool]
     c_slurm = c["slurm"]
     c_ignore = ",".join(c_pool["ignore"]) if c_pool["ignore"] else ""
-    c_extras = "\n".join(c["extras"])
+    c_pyexec = c["python_executable"]
     c_conf_str = yaml.dump(c_pool, default_flow_style=True, width=float("inf")).replace(
         "\n", ""
     )
@@ -103,9 +103,7 @@ def runscript(filename, site, pool):
 
 {slurm_directives}
 
-{c_extras}
-
-python checksums.py {c_pool['path']} --outfile {c_pool['outfile']} --ignore {c_ignore!r} 
+{c_pyexec} checksums.py {c_pool['path']} --outfile {c_pool['outfile']} --ignore {c_ignore!r} 
 """
     if not filename:
         filename = f"{pool}_{site}.sh"
@@ -134,9 +132,16 @@ python checksums.py {c_pool['path']} --outfile {c_pool['outfile']} --ignore {c_i
     help="displays full path instead of relative path",
 )
 @click.option("--ignore", help="ignores directory and files")
+@click.option(
+    "-t",
+    "--threshold",
+    default=0.1,
+    show_default=True,
+    help="minumin value to satisfy valid association",
+)
 @click.argument("left", required=True, type=click.Path())
 @click.argument("right", required=True, type=click.Path())
-def compare(outfile, fileformat, fullpath, ignore, left, right):
+def compare(outfile, fileformat, fullpath, ignore, threshold, left, right):
     """Compare csv files containing checksum to infer the status of data
     in these data pools. The results include, synced files at both HPC sites. unsynced files.
     directory mapping of synced files. filename mis-matches.
@@ -157,7 +162,7 @@ def compare(outfile, fileformat, fullpath, ignore, left, right):
     columns = "rpath"
     if fullpath:
         columns = "fpath"
-    res = compare_compact(ld, lr, columns=columns, relabel=True)
+    res = compare_compact(ld, lr, columns=columns, threshold=threshold, relabel=True)
     if "stdout" in outfile.name:
         click.echo(res)
     else:
@@ -169,15 +174,29 @@ def compare(outfile, fileformat, fullpath, ignore, left, right):
 @cli.command()
 @click.option("--ignore", help="ignores directory and files")
 @click.option(
+    "--drop-duplicates",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="drops duplicated (identical) entries in 'left' argument",
+)
+@click.option(
     "--compact",
     is_flag=True,
     show_default=True,
     default=False,
     help="shortern table by ignoring `unique` only association",
 )
+@click.option(
+    "-t",
+    "--threshold",
+    default=0.1,
+    show_default=True,
+    help="minumin value to satisfy valid association",
+)
 @click.argument("left", required=True, type=click.Path())
 @click.argument("right", required=True, type=click.Path())
-def summary(ignore, compact, left, right):
+def summary(ignore, drop_duplicates, compact, threshold, left, right):
     """Prints a short summary by analysing csv files.
 
     LEFT: csv file containing checksums of all files in the pool for a given project and HPC site.
@@ -186,7 +205,14 @@ def summary(ignore, compact, left, right):
     """
     from .analyse import summary
 
-    summary(left, right, ignore, compact)
+    summary(
+        left,
+        right,
+        ignore=ignore,
+        compact=compact,
+        drop_duplicates=drop_duplicates,
+        threshold=threshold,
+    )
 
 
 def sanitise(host, path):
@@ -205,9 +231,16 @@ def sanitise(host, path):
     default="both",
     help="association type to include",
 )
+@click.option(
+    "-t",
+    "--threshold",
+    default=0.1,
+    show_default=True,
+    help="minumin value to satisfy valid association",
+)
 @click.argument("left", required=True, type=click.Path())
 @click.argument("right", required=True, type=click.Path())
-def prepare_rsync(ignore, Flag, left, right):
+def prepare_rsync(ignore, Flag, threshold, left, right):
     """Prepares rsync commands for the transfer."""
     if Flag == "both":
         Flag = {"unique", "modified_latest_left"}
@@ -230,7 +263,7 @@ def prepare_rsync(ignore, Flag, left, right):
     left_host = conf[left_site]["host"]
     right_host = conf[right_site]["host"]
     dm = dict(directory_map(merge(ld, rd)).values)
-    c = compare(ld, rd)
+    c = compare(ld, rd, threshold=threshold)
     fmap = {}
     syncs = ["#!/bin/bash"]
     syncs.append(disclaimer)
@@ -275,6 +308,46 @@ def prepare_rsync(ignore, Flag, left, right):
             fnames = "\n".join(fnames)
             fid.writelines(fnames)
     print("Created sync_cmd.sh")
+
+
+@cli.command()
+@click.option(
+    "--drop-hidden-files/--no-drop-hidden-files",
+    default=True,
+    is_flag=True,
+    show_default=True,
+    help="ignore hidden files",
+)
+@click.option("--ignore", default=None, show_default=True, help="ignore dirs or files")
+@click.option(
+    "-o", "--outfile", type=click.File("w"), default="-", help="output filename"
+)
+@click.argument("path")
+def checksums(path, outfile, ignore, drop_hidden_files):
+    """Calculates imohash checksum of file(s) at the given path.
+    Results are presented as csv.
+    """
+    from . import checksums
+
+    path = os.path.expanduser(path)
+    pool = ProcessPoolExecutor(max_workers=os.cpu_count())
+    checksums.main(pool, path, outfile, ignore, drop_hidden_files)
+
+
+@cli.command()
+@click.option("-i", "--identityfile", help="IdentityFile for ssh connection")
+@click.argument("host")
+@click.argument("pool")
+def checksums_remote(host, pool, identityfile):
+    """Calculates imohash checksum on remote pool.
+
+    HOST name of the HPC site.
+    POOL name of the pool (example fesom2)
+    These values are defined in the config file.
+    """
+    from . import remotechecksums
+
+    remotechecksums.get_checksum(host, pool, identityfile)
 
 
 if __name__ == "__main__":
