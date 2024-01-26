@@ -57,7 +57,7 @@ def cli():
 @click.argument("site", required=False, default="")
 @click.argument("pool", required=False, default="")
 def config(showall, site, pool):
-    "shows config information for a given site"
+    "Shows config information for a given site"
     if not site:
         if showall:
             print(yaml.dump(conf, default_flow_style=False))
@@ -85,7 +85,7 @@ def config(showall, site, pool):
 @click.argument("site", type=click.Choice(sites), required=True)
 @click.argument("pool", type=click.Choice(pools), required=True)
 def runscript(filename, site, pool):
-    "makes run script for job submission"
+    "Job script to calculate checksums via slurm scheduler"
     if site not in sites:
         raise ValueError(f"mismatch site '{site}'. Possible values: {sites}")
     if pool not in pools:

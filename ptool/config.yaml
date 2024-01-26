@@ -50,5 +50,5 @@ albedo:
     -p: mpp
     -t: '3:00:00'
   python_executable: ~/cs/bin/python
-  # here host info is not used as connection to albedo from outside is not possible
+  # here host info is not used as connection from other sites is not possible
   host: pasili001@albedo0.dmawi.de
