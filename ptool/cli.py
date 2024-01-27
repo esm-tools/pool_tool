@@ -243,15 +243,12 @@ def sanitise(host, path):
 def prepare_rsync(ignore, Flag, threshold, left, right):
     """Prepares rsync commands for the transfer."""
     if Flag == "both":
-        Flag = {"unique", "modified_latest_left"}
+        Flag = {"unique", "modified_latest_left", "modified_latest_right"}
     elif Flag == "modified":
-        Flag = {
-            "modified_latest_left",
-        }
+        Flag = {"modified_latest_left", "modified_latest_right"}
     else:
-        Flag = {
-            "unique",
-        }
+        Flag = {"unique", }
+
     from .analyse import read_csv, compare, compare_compact, directory_map, merge
 
     ld, ld_dups = read_csv(left, ignore=ignore)
@@ -274,20 +271,15 @@ def prepare_rsync(ignore, Flag, threshold, left, right):
         if name in dm:
             use_relative = False
         filelist = []
-        grp = grp.reset_index()
-        flags = set(grp.flag.unique())
-        if ("unique" in flags) and ("unique" in Flag):
-            g = grp[grp.flag == "unique"]
-            if use_relative:
-                filelist.extend(list(g.rpath_left))
-            else:
-                filelist.extend(list(g.fname_left))
-        if ("modified_latest_left" in flags) and ("modified_latest_left" in Flag):
-            g = grp[grp.flag == "modified_latest_left"]
-            if use_relative:
-                filelist.extend(list(g.rpath_left))
-            else:
-                filelist.extend(list(g.fname_left))
+        # grp = grp.reset_index()
+        # flags = set(grp.flag.unique())
+        flags = set(grp.reset_index().flag.unique())
+        common_flags = list(flags & Flag)
+        grp = grp.loc[common_flags].reset_index()
+        if use_relative:
+            filelist.extend(list(grp.rpath_left))
+        else:
+            filelist.extend(list(grp.fname_left))
         if filelist:
             fid = str(uuid.uuid4())[:8]
             fmap[fid] = filelist
