@@ -1,0 +1,23 @@
+# ENVIRONMENT FOR USING PTOOL WITH CONDA
+# ======================================
+#
+# How to install ptool using a conda environment
+# --------------------------------------------------
+# 1. ``conda env create -f environment.yaml -n ptool``
+# 2. ``pip install -e .``
+
+name: ptool
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - click
+  - pyyaml
+  - humanize
+  - tabulate
+  - pandas
+  - pyarrow
+  - paramiko
+  - pip:
+    - imohash
