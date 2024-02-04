@@ -53,8 +53,9 @@ def stats(fpath, stat=os.stat):
         checksum = hasher(fpath)
         st = stat(fpath)
         record = f"{checksum},{st.st_size},{st.st_mtime},{fpath}"
-    except:
-        print(f"ERROR: skipping {fpath}")
+    except Exception as e:
+        print(f"{e.__class__.__name__}: {str(e)}")
+        #print(f"ERROR: skipping {fpath}")
         record = f"-,0,0,{fpath}"
     return record
 
@@ -80,6 +81,8 @@ def scanner(path, ignore=None, drop_hidden_files=True):
                 i.stat()
             except FileNotFoundError:
                 print(f"skipping.. {i.path} -> {os.readlink(i.path)}")
+            except Exception as e:
+                print(f"{e.__class__.__name__}: {str(e)}")
             else:
                 if os.path.isdir(i.path):
                     dirs.append(i.path)
