@@ -9,7 +9,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="ptool",
-    version="0.1.0",
+    version="0.2.0",
     description="Analyse project data in pool directory at various sites",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -30,7 +30,7 @@ setup(
         ptool=ptool.cli:cli
     """,
     classifiers=[
-        "Development Status :: 0.1.0",
+        "Development Status :: 0.2.0",
         "Intended Audience :: Developers",
         "Intended Audience :: Information Technology",
         "Intended Audience :: Science/Research",
