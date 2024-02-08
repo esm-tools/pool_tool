@@ -24,6 +24,8 @@ setup(
         "pyarrow",
         "imohash",
         "paramiko",
+        "questionary",
+        "ruamel-yaml",
     ],
     entry_points="""
         [console_scripts]

@@ -21,3 +21,5 @@ dependencies:
   - paramiko
   - pip:
     - imohash
+    - questionary
+    - ruamel-yaml
