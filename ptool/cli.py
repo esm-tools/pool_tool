@@ -4,12 +4,15 @@ import click
 import yaml
 import pathlib
 from pprint import pprint
-from . import conf
+
 from concurrent.futures import ProcessPoolExecutor
+from . import conf
+from . import utils
+from . import configure
 
 
 sites = list(conf)
-pools = {p for site in sites for p in conf[site]["pool"]}
+pools = {p for site in sites for p in conf[site].get("pool", {})}
 
 disclaimer = """
 
@@ -341,6 +344,22 @@ def checksums_remote(host, pool, identityfile):
     from . import remotechecksums
 
     remotechecksums.get_checksum(host, pool, identityfile)
+
+
+@cli.command()
+@click.option(
+    "-s",
+    "--ssh-key-test",
+    is_flag=True,
+    default=False,
+    help="Tests ssh keys"
+)
+def config(ssh_key_test):
+    config = configure.Config()
+    if ssh_key_test:
+        config.test_ssh_connection()
+    else:
+        config.all()
 
 
 if __name__ == "__main__":
