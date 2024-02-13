@@ -26,6 +26,7 @@ setup(
         "paramiko",
         "questionary",
         "ruamel-yaml",
+        "tqdm",
     ],
     entry_points="""
         [console_scripts]
