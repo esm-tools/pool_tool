@@ -69,9 +69,9 @@ def get_checksum(host, pool, identityfile):
     # cmd = f"~/cs/bin/python -m checksums {path} --outfile {OUTFILE}"
     cmd = f"{pyexec} checksums.py {path} --outfile {OUTFILE} --ignore {ignore}"
     print(f"calculating checksum for pool {pool}")
-    i, o, e = ssh.exec_command(cmd)
-    for line in o:
-        print(line.strip())
+    i, o, e = ssh.exec_command(cmd, get_pty=True)
+    for line in iter(lambda: o.read(512).decode("utf-8", "ignore"), ""):
+        print(line, end="")
     rel_outfile = outfile.replace("~/", "./")
     with ssh.open_sftp() as scp:
         scp.get(OUTFILE, rel_outfile)
