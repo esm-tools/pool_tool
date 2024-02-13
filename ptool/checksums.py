@@ -8,6 +8,7 @@ import click
 from imohash import hashfile
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
+from tqdm.contrib.concurrent import process_map
 
 
 not_hidden_files_or_dirs = re.compile(r"^[^.]").match
@@ -42,6 +43,19 @@ def timethis(msg=""):
         print(f"Elapsed {elapsed:.2f}s")
 
 
+class Results:
+    "Wraps the result (either successful result or an exception)"
+    def __init__(self, value=None, exc=None):
+        self.value = value
+        self.exc = exc
+    def has_error(self):
+        return self.exc is not None
+    def result(self):
+        if self.exc:
+            return self.exc
+        return self.value
+
+
 def hasher(filename):
     "Calucates imohash for a given file"
     return f"imohash:{hashfile(filename, hexdigest=True)}"
@@ -53,10 +67,9 @@ def stats(fpath, stat=os.stat):
         checksum = hasher(fpath)
         st = stat(fpath)
         record = f"{checksum},{st.st_size},{st.st_mtime},{fpath}"
+        record = Results(value=record)
     except Exception as e:
-        print(f"{e.__class__.__name__}: {str(e)}")
-        #print(f"ERROR: skipping {fpath}")
-        record = f"-,0,0,{fpath}"
+        record = Results(exc=f"{str(e)}")
     return record
 
 
@@ -98,7 +111,7 @@ def get_files(path, ignore=None, drop_hidden_files=True):
     return list(files_iter)
 
 
-def main(pool, path, outfile, ignore=None, drop_hidden_files=True):
+def main(path, outfile, ignore=None, drop_hidden_files=True):
     "Calculates hashs of all the files in parallel"
     print("Gathering files...")
     with timethis("getting files"):
@@ -110,13 +123,20 @@ def main(pool, path, outfile, ignore=None, drop_hidden_files=True):
     print(f"nfiles: {nfiles}")
     results = ["checksum,fsize,mtime,fpath"]
     print("Calculating hashes...")
+    errors = []
     with timethis("calculating hashes"):
-        futures = pool.map(stats, files, chunksize=10)
-        for i, item in enumerate(futures):
-            if not item.startswith("-"):
-                results.append(item)
-            # print(f"{i:>6d} {item}")
+        futures = process_map(stats, files, chunksize=10, max_workers=os.cpu_count(), unit="files")
+        for item in futures:
+            if item.has_error():
+                errors.append(item)
+            else:
+                results.append(item.result())
     results = "\n".join(results)
+    if errors:
+        nerrors = len(errors)
+        errorstr = '\n'.join([e.result() for e in errors])
+        print(errors)
+        print(f"Found {nerrors} Errors out of {nfiles} Files")
     print(f"Writing results to {outfile.name}")
     outfile.writelines(results)
 
@@ -141,9 +161,7 @@ def cli(path, outfile, ignore, drop_hidden_files):
     Results are presented as csv.
     """
     path = os.path.expanduser(path)
-    pool = ProcessPoolExecutor(max_workers=os.cpu_count())
     main(
-        pool,
         path=path,
         outfile=outfile,
         ignore=ignore,
