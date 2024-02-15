@@ -1,8 +1,9 @@
+import fnmatch
 import glob
 import os
-import questionary
 import subprocess
 
+import questionary
 from ruamel.yaml import YAML
 
 BASEPATH_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
@@ -282,7 +283,11 @@ class Config(dict):
             ).ask()
             print(ssh_key_config_action)
             if ssh_key_config_action == "Reuse an existing ssh-key":
-                possible_keys = glob.glob(f"{ssh_dir}/*[!\\.pub]")
+                possible_keys = [
+                    os.path.join(r, _f)
+                    for r, d, f, in os.walk(ssh_dir)
+                    for _f in fnmatch.filter(f, "id_*[!\\.pub]")
+                ]
 
                 # Ask user which ssh-key to use
                 ssh_key_path = questionary.select(
