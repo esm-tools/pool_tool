@@ -285,7 +285,7 @@ class Config(dict):
             if ssh_key_config_action == "Reuse an existing ssh-key":
                 possible_keys = [
                     os.path.join(r, _f)
-                    for r, d, f, in os.walk(ssh_dir)
+                    for r, d, f in os.walk(ssh_dir)
                     for _f in fnmatch.filter(f, "id_*[!\\.pub]")
                 ]
 
