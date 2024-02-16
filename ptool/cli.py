@@ -6,13 +6,13 @@ import pathlib
 from pprint import pprint
 
 from concurrent.futures import ProcessPoolExecutor
-from . import conf
+#from . import conf
 from . import utils
 from . import configure
 
 
-sites = list(conf)
-pools = {p for site in sites for p in conf[site].get("pool", {})}
+#sites = list(conf)
+#pools = {p for site in sites for p in conf[site].get("pool", {})}
 
 disclaimer = """
 
@@ -49,7 +49,7 @@ def process_slurm_directives(d):
 def cli():
     pass
 
-
+"""
 @cli.command()
 @click.option(
     "--all",
@@ -82,7 +82,7 @@ def config(showall, site, pool):
     c[site]["pool"] = {pool: conf[site]["pool"][pool]}
     print(yaml.dump(c, default_flow_style=False))
     return
-
+"""
 
 @cli.command()
 @click.option("-f", "--filename", help="name of the run script")
@@ -94,7 +94,9 @@ def runscript(filename, site, pool):
         raise ValueError(f"mismatch site '{site}'. Possible values: {sites}")
     if pool not in pools:
         raise ValueError(f"mismatch pool '{pool}'. Possible values: {pools}")
-    c = conf[site]
+    C = configure.Config()
+    C.init_from_user_config()
+    c = C[site]
     c_pool = c["pool"][pool]
     c_slurm = c["slurm"]
     c_ignore = ",".join(c_pool["ignore"]) if c_pool["ignore"] else ""
@@ -254,6 +256,8 @@ def prepare_rsync(ignore, Flag, threshold, left, right):
         Flag = {"unique", }
 
     from .analyse import read_csv, compare, compare_compact, directory_map, merge
+    C = configure.Config()
+    C.init_from_user_config()
 
     ld, ld_dups = read_csv(left, ignore=ignore)
     rd, rd_dups = read_csv(right, ignore=ignore)
@@ -261,8 +265,8 @@ def prepare_rsync(ignore, Flag, threshold, left, right):
     left_site, _ = os.path.splitext(left_site)
     _, right_pool, right_site = right.split("_")
     right_site, _ = os.path.splitext(right_site)
-    left_host = conf[left_site]["host"]
-    right_host = conf[right_site]["host"]
+    left_host = f"{C[left_site]['user']}@{C[left_site]['host']}"
+    right_host = f"{C[right_host]['user']}@{C[right_site]['host']}"
     dm = dict(directory_map(merge(ld, rd)).values)
     c = compare(ld, rd, threshold=threshold)
     fmap = {}

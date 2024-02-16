@@ -15,5 +15,5 @@ def loadconf():
     return conf
 
 
-conf = loadconf()
+#conf = loadconf()
 del loadconf
