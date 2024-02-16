@@ -1,8 +1,9 @@
+import fnmatch
 import glob
 import os
-import questionary
 import subprocess
 
+import questionary
 from ruamel.yaml import YAML
 
 BASEPATH_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
@@ -134,6 +135,26 @@ class Config(dict):
             self.user_config_path = self.rc["user_config_path"]
             self.load_config(path=self.user_config_path)
 
+        self.checks()
+
+    def checks(self):
+        """
+        Run basic tests
+        """
+        missing_host = []
+        for machine in self.rc["ssh_keys"]:
+            if "host" not in self[machine]:
+                missing_host.append(machine)
+
+        if missing_host:
+            print(
+                "ERROR: The variable ``host`` is missing in your ``config.yaml`` for "
+                "the following machines:\n- ",
+                 end = "",
+            )
+            print("\n- ".join(missing_host))
+            exit(1)
+
     def create_user_config(self, verbose=True):
         """
         Completes config stored in ``self`` with user-specific information, using
@@ -168,7 +189,7 @@ class Config(dict):
             exit(1)
 
         # Check if the path exists
-        self.user_config_path = f"{self.current_directory}/ptool_config.yaml"
+        self.user_config_path = f"{path}/ptool_config.yaml"
         if os.path.isfile(self.user_config_path):
             rewrite_config = questionary.confirm(
                 f"The file {self.user_config_path} already exists. Do you want to "
@@ -262,7 +283,11 @@ class Config(dict):
             ).ask()
             print(ssh_key_config_action)
             if ssh_key_config_action == "Reuse an existing ssh-key":
-                possible_keys = glob.glob(f"{ssh_dir}/*[!\\.pub]")
+                possible_keys = [
+                    os.path.join(r, _f)
+                    for r, d, f in os.walk(ssh_dir)
+                    for _f in fnmatch.filter(f, "id_*[!\\.pub]")
+                ]
 
                 # Ask user which ssh-key to use
                 ssh_key_path = questionary.select(
