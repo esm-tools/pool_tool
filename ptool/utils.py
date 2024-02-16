@@ -4,7 +4,7 @@ import socket
 import yaml
 
 BASEPATH_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH_DEFAULT = f"{BASEPATH_SCRIPTS}/config.yaml"
+CONFIG_PATH_DEFAULT = f"{BASEPATH_SCRIPTS}/ptool_config.yaml"
 
 
 def determine_computer_from_hostname(config_path=CONFIG_PATH_DEFAULT, verbose=True):
@@ -14,18 +14,18 @@ def determine_computer_from_hostname(config_path=CONFIG_PATH_DEFAULT, verbose=Tr
 
     Notes
     -----
-    The machine must be registered in the ``config.yaml`` file in
+    The machine must be registered in the ``ptool_config.yaml`` file in
     order to be found.
 
     Input
     -----
     config_path : str
-        Path to the ``config.yaml``
+        Path to the ``ptool_config.yaml``
 
     Returns
     -------
     str
-        A string with the name of the machine as described in ``config.yaml``. If
+        A string with the name of the machine as described in ``ptool_config.yaml``. If
         pattern not matched it returns ``"local"``
     """
     with open(config_path, "r") as f:

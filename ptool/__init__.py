@@ -6,7 +6,7 @@ def loadconf():
     import yaml
     import shutil
 
-    default_config_file = os.path.join(os.path.dirname(__file__), "config.yaml")
+    default_config_file = os.path.join(os.path.dirname(__file__), "ptool_config.yaml")
     user_config = os.path.expanduser("~/.ptool.yaml")
     if not os.path.exists(user_config):
         shutil.copy(default_config_file, user_config)
