@@ -6,19 +6,19 @@ import subprocess
 from ruamel.yaml import YAML
 
 BASEPATH_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH_DEFAULT = f"{BASEPATH_SCRIPTS}/config.yaml"
+CONFIG_PATH_DEFAULT = f"{BASEPATH_SCRIPTS}/ptool_config.yaml"
 
 
 class Config(dict):
     """
     A dictionary subclass to help the user to configure ptool and creating their own
-    ``config.yaml``
+    ``ptool_config.yaml``
     """
 
     def __init__(self):
         """
         Instantiates the Config object. Initialize the path variables, the rc info
-        and loads the default ``config.yaml`` distributed with the package.
+        and loads the default ``ptool_config.yaml`` distributed with the package.
         """
         # Path attributes
         self.default_path = CONFIG_PATH_DEFAULT
@@ -27,7 +27,7 @@ class Config(dict):
         self.current_directory = os.getcwd()
         # rc dictionary initialization
         self.rc = {}
-        # Loads the default ``config.yaml`` into ``self``
+        # Loads the default ``ptool_config.yaml`` into ``self``
         self.load_config()
 
     def load_config(self, path=None):
@@ -84,7 +84,7 @@ class Config(dict):
         Creates the rc file (``~/.ptoolrc.yaml``), a file that contains information from
         the user's configuration of the tool. Initializes the rc variables in
         ``self.rc``. ``self.rc`` contains the following key-values:
-        * ``user_config_path``: the path to the user's ``config.yaml``
+        * ``user_config_path``: the path to the user's ``ptool_config.yaml``
         * ``machines``: a list of configured machines
         * ``ssh_keys``: a dictionary which keys correspond to the names of the machines
             and the values to the path of the corresponding ssh-keys
@@ -126,7 +126,7 @@ class Config(dict):
 
     def init_from_user_config(self):
         """
-        Reads the rc file and loads the user ``config.yaml`` based on the location in
+        Reads the rc file and loads the user ``ptool_config.yaml`` based on the location in
         ``self.rc["user_config_path"]``. For methods that are not run from ``self.all``.
         """
         if not self.user_config_path:
@@ -139,21 +139,21 @@ class Config(dict):
         Completes config stored in ``self`` with user-specific information, using
         questionaries to ask the user about the missing info interactively, and
         prepares the ``~/.ptoolrc.yaml`` file. The steps involved in this method are:
-        - Ask the user where should the ``config.yaml`` be created
-        - Load the user ``config.yaml`` if it already exists
-        - Store the ``config.yaml`` path in the rc file
+        - Ask the user where should the ``ptool_config.yaml`` be created
+        - Load the user ``ptool_config.yaml`` if it already exists
+        - Store the ``ptool_config.yaml`` path in the rc file
         - Find which machines need to be configured
         - Ask for the user name in the different machines
-        - Save the new information into the user ``config.yaml``
+        - Save the new information into the user ``ptool_config.yaml``
 
         Return
         ------
         machines : list
             List of machines that were configured
         """
-        # Ask the user where should the ``config.yaml`` be created
+        # Ask the user where should the ``ptool_config.yaml`` be created
         path = questionary.path(
-            "Enter the directory in which to save the config.yaml "
+            "Enter the directory in which to save the ptool_config.yaml "
             f"({self.current_directory}): ",
         ).ask()
 
@@ -168,14 +168,14 @@ class Config(dict):
             exit(1)
 
         # Check if the path exists
-        self.user_config_path = f"{self.current_directory}/config.yaml"
+        self.user_config_path = f"{self.current_directory}/ptool_config.yaml"
         if os.path.isfile(self.user_config_path):
             rewrite_config = questionary.confirm(
                 f"The file {self.user_config_path} already exists. Do you want to "
                 "overwrite it?"
             ).ask()
             if rewrite_config:
-                # Load the user ``config.yaml`` if it already exists
+                # Load the user ``ptool_config.yaml`` if it already exists
                 self.load_config(self.user_config_path)
             else:
                 print("Config operation stopped by the user")

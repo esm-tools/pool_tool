@@ -1,5 +1,4 @@
 levante:
-#=======================================================================================
   pool:
     fesom2:
       path: /pool/data/AWICM/FESOM2
@@ -35,7 +34,6 @@ levante:
     registration_url: https://luv.dkrz.de/pubkeys/
 
 albedo:
-#=======================================================================================
   pool:
     fesom2:
       path: /albedo/pool/FESOM2
@@ -69,36 +67,32 @@ albedo:
     post: None
 
 juwels:
-#=======================================================================================
   node_names:
     login: '^jwlogin[0-9][0-9]\.juwels'
     compute: '^jwc[0-9][0-9]*'
+  host: juwels-cluster.fz-juelich.de
   ssh:
     registration_url: https://apps.fz-juelich.de/jsc/hps/juwels/access.html#key-upload-key-restriction
 
 blogin:
-#=======================================================================================
   node_names:
     login: 'blogin*'
     compute: '^b[A-Za-z0-9]+\.usr\.hlrn\.de$'
     post: 'blogin*'
 
 glogin:
-#=======================================================================================
   node_names:
     login: 'glogin*'
     compute: '^g[A-Za-z0-9]+\.usr\.hlrn\.de$'
     post: 'glogin*'
 
 aleph:
-#=======================================================================================
   node_names:
     login: 'elogin*'
     compute: 'mom*'
     post: 'elogin*'
 
 nesh:
-#=======================================================================================
   node_names:
     login: 'nesh*'
     compute:
