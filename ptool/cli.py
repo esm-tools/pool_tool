@@ -6,13 +6,9 @@ import pathlib
 from pprint import pprint
 
 from concurrent.futures import ProcessPoolExecutor
-#from . import conf
 from . import utils
 from . import configure
 
-
-#sites = list(conf)
-#pools = {p for site in sites for p in conf[site].get("pool", {})}
 
 disclaimer = """
 
@@ -49,7 +45,7 @@ def process_slurm_directives(d):
 def cli():
     pass
 
-"""
+'''
 @cli.command()
 @click.option(
     "--all",
@@ -82,20 +78,19 @@ def config(showall, site, pool):
     c[site]["pool"] = {pool: conf[site]["pool"][pool]}
     print(yaml.dump(c, default_flow_style=False))
     return
-"""
+'''
 
 @cli.command()
 @click.option("-f", "--filename", help="name of the run script")
-@click.argument("site", type=click.Choice(sites), required=True)
-@click.argument("pool", type=click.Choice(pools), required=True)
+@click.argument("site", required=True)
+@click.argument("pool", required=True)
 def runscript(filename, site, pool):
     "Job script to calculate checksums via slurm scheduler"
-    if site not in sites:
-        raise ValueError(f"mismatch site '{site}'. Possible values: {sites}")
-    if pool not in pools:
-        raise ValueError(f"mismatch pool '{pool}'. Possible values: {pools}")
-    C = configure.Config()
-    C.init_from_user_config()
+    try:
+        C = configure.Config()
+        C.init_from_user_config()
+    except FileNotFoundError:
+        exit()
     c = C[site]
     c_pool = c["pool"][pool]
     c_slurm = c["slurm"]
@@ -256,17 +251,20 @@ def prepare_rsync(ignore, Flag, threshold, left, right):
         Flag = {"unique", }
 
     from .analyse import read_csv, compare, compare_compact, directory_map, merge
-    C = configure.Config()
-    C.init_from_user_config()
 
+    try:
+        C = configure.Config()
+        C.init_from_user_config()
+    except FileNotFoundError:
+        exit()
     ld, ld_dups = read_csv(left, ignore=ignore)
     rd, rd_dups = read_csv(right, ignore=ignore)
-    _, left_pool, left_site = left.split("_")
+    _, left_pool, left_site = os.path.basename(left).split("_")
     left_site, _ = os.path.splitext(left_site)
-    _, right_pool, right_site = right.split("_")
+    _, right_pool, right_site = os.path.basename(right).split("_")
     right_site, _ = os.path.splitext(right_site)
     left_host = f"{C[left_site]['user']}@{C[left_site]['host']}"
-    right_host = f"{C[right_host]['user']}@{C[right_site]['host']}"
+    right_host = f"{C[right_site]['user']}@{C[right_site]['host']}"
     dm = dict(directory_map(merge(ld, rd)).values)
     c = compare(ld, rd, threshold=threshold)
     fmap = {}
