@@ -333,19 +333,18 @@ def checksums(path, outfile, ignore, drop_hidden_files):
 
 
 @cli.command()
-@click.option("-i", "--identityfile", help="IdentityFile for ssh connection")
-@click.argument("host")
+@click.argument("site")
 @click.argument("pool")
-def checksums_remote(host, pool, identityfile):
+def checksums_remote(site, pool):
     """Calculates imohash checksum on remote pool.
 
-    HOST name of the HPC site.
+    SITE name of the HPC site.
     POOL name of the pool (example fesom2)
     These values are defined in the config file.
     """
     from . import remotechecksums
 
-    remotechecksums.get_checksum(host, pool, identityfile)
+    remotechecksums.get_checksum(site, pool)
 
 
 @cli.command()
