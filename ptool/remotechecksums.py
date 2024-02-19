@@ -1,7 +1,11 @@
+import getpass
 import os
 import time
+
 import paramiko
+
 import ptool
+
 from . import configure
 
 try:
@@ -15,7 +19,7 @@ def get_ssh(site: str = None):
     """
     Creates a ssh connection object to remote host.
     `site` must be defined in the config file.
-    
+
     Example:
     >>> import ptool.configure
     >>> C = ptool.configure.Config()
@@ -37,7 +41,14 @@ def get_ssh(site: str = None):
     params["key_filename"] = identityfile
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(**params)
+    try:
+        ssh.connect(**params)
+    except paramiko.ssh_exception.PasswordRequiredException:
+        # asking for passphrase is more appropriate here as the issue is dealing with
+        # encrypted ssh-keys but paramiko uses password for passphrase if passphrase is
+        # not provided
+        params['password'] = getpass.getpass()
+        ssh.connect(**params)
     return ssh
 
 
