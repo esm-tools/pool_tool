@@ -2,16 +2,30 @@
 
 import os
 import re
+import sys
 import stat
 import time
 import click
 from imohash import hashfile
-from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
 from tqdm.contrib.concurrent import process_map
 
 
 not_hidden_files_or_dirs = re.compile(r"^[^.]").match
+
+
+def getecho():
+    file = sys.stdout
+    if not sys.stdout.isatty():
+        file = sys.stderr
+
+    def _print(*args):
+        print(*args, file=file, flush=True)
+
+    return _print
+
+
+echo = getecho()
 
 
 def ignore_re(ignore):
@@ -38,18 +52,21 @@ def timethis(msg=""):
     yield
     elapsed = time.time() - st
     if msg:
-        print(f"{msg} Elapsed {elapsed:.2f}s")
+        echo(f"{msg} Elapsed {elapsed:.2f}s")
     else:
-        print(f"Elapsed {elapsed:.2f}s")
+        echo(f"Elapsed {elapsed:.2f}s")
 
 
 class Results:
     "Wraps the result (either successful result or an exception)"
+
     def __init__(self, value=None, exc=None):
         self.value = value
         self.exc = exc
+
     def has_error(self):
         return self.exc is not None
+
     def result(self):
         if self.exc:
             return self.exc
@@ -93,9 +110,9 @@ def scanner(path, ignore=None, drop_hidden_files=True):
             try:
                 i.stat()
             except FileNotFoundError:
-                print(f"skipping.. {i.path} -> {os.readlink(i.path)}")
+                echo(f"skipping.. {i.path} -> {os.readlink(i.path)}")
             except Exception as e:
-                print(f"{e.__class__.__name__}: {str(e)}")
+                echo(f"{e.__class__.__name__}: {str(e)}")
             else:
                 if os.path.isdir(i.path):
                     dirs.append(i.path)
@@ -113,19 +130,21 @@ def get_files(path, ignore=None, drop_hidden_files=True):
 
 def main(path, outfile, ignore=None, drop_hidden_files=True):
     "Calculates hashs of all the files in parallel"
-    print("Gathering files...")
+    echo("Gathering files...")
     with timethis("getting files"):
         if os.path.isdir(path):
             files = get_files(path, ignore=ignore, drop_hidden_files=drop_hidden_files)
         else:
             files = [path]
     nfiles = len(files)
-    print(f"nfiles: {nfiles}")
+    echo(f"nfiles: {nfiles}")
     results = ["checksum,fsize,mtime,fpath"]
-    print("Calculating hashes...")
+    echo("Calculating hashes...")
     errors = []
     with timethis("calculating hashes"):
-        futures = process_map(stats, files, chunksize=10, max_workers=os.cpu_count(), unit="files")
+        futures = process_map(
+            stats, files, chunksize=10, max_workers=os.cpu_count(), unit="files"
+        )
         for item in futures:
             if item.has_error():
                 errors.append(item)
@@ -134,10 +153,10 @@ def main(path, outfile, ignore=None, drop_hidden_files=True):
     results = "\n".join(results)
     if errors:
         nerrors = len(errors)
-        errorstr = '\n'.join([e.result() for e in errors])
-        print(errors)
-        print(f"Found {nerrors} Errors out of {nfiles} Files")
-    print(f"Writing results to {outfile.name}")
+        errorstr = "\n".join([e.result() for e in errors])
+        echo(errors)
+        echo(f"Found {nerrors} Errors out of {nfiles} Files")
+    echo(f"Writing results to {outfile.name}")
     outfile.writelines(results)
 
 
