@@ -13,13 +13,10 @@ channels:
 dependencies:
   - python=3.9
   - click
-  - pyyaml
   - humanize
   - tabulate
   - pandas
   - pyarrow
-  - paramiko
   - pip:
     - imohash
-    - questionary
-    - ruamel-yaml
+    - tqdm
