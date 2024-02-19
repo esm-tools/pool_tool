@@ -150,7 +150,7 @@ class Config(dict):
             print(
                 "ERROR: The variable ``host`` is missing in your ``config.yaml`` for "
                 "the following machines:\n- ",
-                 end = "",
+                end="",
             )
             print("\n- ".join(missing_host))
             exit(1)
@@ -391,23 +391,37 @@ class Config(dict):
 
         # Loop through machines
         for machine in machines:
-            private_key_path = self.rc["ssh_keys"][machine]
-            host = self[machine]["host"]
-            user = self[machine]["user"]
+            private_key_path = self.rc["ssh_keys"].get(machine)
+            host = self[machine].get("host")
+            user = self[machine].get("user")
             ssh_test_command = f"ssh -i {private_key_path} {user}@{host} -o IdentitiesOnly=yes 'echo {machine} SSH key authentication successful'"
 
-            # Run the ssh test
-            result = subprocess.run(ssh_test_command, shell=True)
+            if private_key_path:
+                try:
+                    # Run the ssh test
+                    result = subprocess.run(ssh_test_command, shell=True, timeout=60)
 
-            # Store result of the test
-            test_results[machine] = not (bool(result.returncode))
+                    # Store result of the test
+                    test_results[machine] = result.returncode
+                except subprocess.TimeoutExpired:
+                    # Store the result for a timeout
+                    print(f"WARNING: ssh connection to ``{machine}`` timed out")
+                    test_results[machine] = 2
+            else:
+                print(
+                    f"WARNING: No ssh-key configured for ``{machine}``. Use ``ptool "
+                    "config`` to configure one"
+                )
+                test_results[machine] = "missing"
 
         # Report results of the tests
         questionary.print("\nssh key test results", style="bold fg:darkgreen")
         for machine, value in test_results.items():
             questionary.print(machine, end=" ")
-            if value:
+            if value == 0:
                 questionary.print("working", style="green")
+            elif value == "missing":
+                questionary.print("missing key", style="yellow")
             else:
                 questionary.print("broken", style="red")
 
