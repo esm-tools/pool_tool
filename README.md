@@ -275,4 +275,11 @@ Verify the contents of `sync_cmd.sh` before executing the script. It is also
 possible to directly edit this file to remove selected files from the
 transaction.
 
+To give a sneak-peak into the `sync_cmd.sh` file, looking for
+`MESHES_FESOM2.1/hr` entry as follows:
 
+``` shell
+$ grep MESHES_FESOM2.1/hr sync_cmd.sh
+# MESHES_FESOM2.1/hr
+rsync -av --files-from=flist/95087e3b a270243@levante.dkrz.de:/pool/data/AWICM/FESOM2/MESHES_FESOM2.1/hr/ /albedo/pool/FESOM2/HR/
+```
