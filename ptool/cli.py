@@ -20,6 +20,7 @@ disclaimer = """
 
 @click.group()
 def cli():
+    """Ptool is a cross-site pool management tool"""
     pass
 
 
