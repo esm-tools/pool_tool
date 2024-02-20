@@ -177,8 +177,9 @@ unique     FORCING/era5/forcing/inverted/t2m.1956.nc                            
 ```
 
 The comparison results are written to `lev_alb_fesom2_cmp.csv` file. Explore the
-contents using and editor or grep for specific entries using the grep
-command. For instance, finding the occurrences for folder `MESHES_FESOM2.1/hr`
+contents this file using your favorite editor or search for specific entries
+using the `grep` command. For instance, using `grep` to finding the occurrences
+of folder `MESHES_FESOM2.1/hr`
 
 ``` shell
 $ grep MESHES_FESOM2.1/hr lev_alb_fesom2_cmp.csv
@@ -202,7 +203,13 @@ unique,MESHES_FESOM2.1/hr/README,
 
 #### prepare-rsync
 
-This command produces a shell script with a list of rsync commands to sync the pools. User can choose which file associations (i.e., modified, unique) to include in the transfer. Please check out the `--help` command to see explination of the options and few examples.
+This command produces a shell script which contains a list of rsync commands to
+be executed. Before running the shell script, it is recommended to check the
+contents of this file to see if `prepare-rsync` has produced the desired
+result. User can directly manipulate the shell script to adjust for minor
+artifacts in-case the options offered by the command does not yield the exact
+result the user is expecting. Please check out the `--help` command for details
+on the options along with few examples of invoking this command.
 
 ``` shell
 $ ptool prepare-rsync --help
