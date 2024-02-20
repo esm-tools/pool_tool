@@ -135,7 +135,7 @@ def main(path, outfile, ignore=None, drop_hidden_files=True):
     if errors:
         nerrors = len(errors)
         errorstr = '\n'.join([e.result() for e in errors])
-        print(errors)
+        print(errorstr)
         print(f"Found {nerrors} Errors out of {nfiles} Files")
     print(f"Writing results to {outfile.name}")
     outfile.writelines(results)
