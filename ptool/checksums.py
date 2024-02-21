@@ -154,7 +154,7 @@ def main(path, outfile, ignore=None, drop_hidden_files=True):
     if errors:
         nerrors = len(errors)
         errorstr = "\n".join([e.result() for e in errors])
-        echo(errors)
+        echo(errorstr)
         echo(f"Found {nerrors} Errors out of {nfiles} Files")
     echo(f"Writing results to {outfile.name}")
     outfile.writelines(results)
