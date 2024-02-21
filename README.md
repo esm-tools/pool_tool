@@ -8,9 +8,8 @@ different machines.
 
 ## Installation
 
-As this a private repository, the easiest and usual approach of installing via
-pip `pip install ptool` is not made available.  The current approach is to clone
-the repository on the machine where Ptool needs to installed
+The current approach is to clone the repository on the machine where `Ptool` needs
+to installed
 
 ``` shell
 git clone https://github.com/esm-tools/pool_tool.git
