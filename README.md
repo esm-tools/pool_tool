@@ -1,4 +1,4 @@
-# Pool
+# Ptool
 
 A tool to manage pools across different sites. With Ptool it is possible to take
 snap-shot of a pool at regular intervals and compare them to monitor the changes
