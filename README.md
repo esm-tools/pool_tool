@@ -63,14 +63,14 @@ Lets say, `Ptool` is installed on Levante and the pool to take snap-shot is
 `fesom2` project, then invoke `checksum` as follows:
 
 ``` shell
-$ ptool checksums --ignore dist_* -o levante_fesom2.csv /pool/data/AWICM/FESOM2
+$ ptool checksums --ignore-dirs dist_* -o levante_fesom2.csv /pool/data/AWICM/FESOM2
 Gathering files...
 skipping.. /pool/data/AWICM/FESOM2/FORCING/ERA5 -> /mnt/lustre01/work/ba1138/a270099/era5/forcing/inverted
-getting files Elapsed 0.71s
-nfiles: 3031
+getting files Elapsed 0.22s
+nfiles: 3060
 Calculating hashes...
-100%|████████████████████████████████████████████████████| 3031/3031 [00:02<00:00, 1136.25files/s]
-calculating hashes Elapsed 3.32s
+100%|██████████| 3060/3060 [00:01<00:00, 1610.56files/s]
+calculating hashes Elapsed 3.21s
 Writing results to levante_fesom2.csv
 ```
 
@@ -82,14 +82,14 @@ from both Albedo and Levante then we can also directly invoke `checksums`
 command on Levante from Albedo using ssh command as follows:
 
 ``` shell
-$ ssh a270243@levante.dkrz.de "~/miniforge3/envs/ptool/bin/ptool checksums /pool/data/AWICM/FESOM2 --ignore dist_*" > levante_fesom2.csv
+$ ssh a270243@levante.dkrz.de "~/miniforge3/envs/ptool/bin/ptool checksums /pool/data/AWICM/FESOM2 --ignore-dirs dist_*" > levante_fesom2.csv
 Gathering files...
 skipping.. /pool/data/AWICM/FESOM2/FORCING/ERA5 -> /mnt/lustre01/work/ba1138/a270099/era5/forcing/inverted
-getting files Elapsed 0.98s
-nfiles: 3031
+getting files Elapsed 0.22s
+nfiles: 3060
 Calculating hashes...
-100%|██████████| 3031/3031 [00:03<00:00, 981.43files/s]
-calculating hashes Elapsed 3.85s
+100%|██████████| 3060/3060 [00:01<00:00, 1610.56files/s]
+calculating hashes Elapsed 3.21s
 Writing results to <stdout>
 ```
 
