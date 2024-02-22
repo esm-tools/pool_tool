@@ -1,8 +1,6 @@
 import os
 import uuid
 import click
-import pathlib
-from pprint import pprint
 
 
 disclaimer = """
@@ -199,7 +197,7 @@ def prepare_rsync(ignore, Flag, threshold, lefthost, righthost, left, right):
             "unique",
         }
 
-    from .analyse import read_csv, compare, compare_compact, directory_map, merge
+    from .analyse import read_csv, compare, directory_map, merge
 
     ld, ld_dups = read_csv(left, ignore=ignore)
     rd, rd_dups = read_csv(right, ignore=ignore)
@@ -277,19 +275,26 @@ fi
     show_default=True,
     help="ignore hidden files",
 )
-@click.option("--ignore", default=None, show_default=True, help="ignore dirs or files")
+@click.option("--ignore", default=None, show_default=True, help="ignore files")
+@click.option(
+    "--ignore-dirs", default=None, show_default=True, help="ignore directories"
+)
 @click.option(
     "-o", "--outfile", type=click.File("w"), default="-", help="output filename"
 )
 @click.argument("path")
-def checksums(path, outfile, ignore, drop_hidden_files):
+def checksums(path, outfile, ignore, ignore_dirs, drop_hidden_files):
     """Calculates imohash checksum of file(s) at the given path.
     Results are presented as csv.
+
+    `--ignore` and `--ignore-dirs` support *wildcards* in filtering down the
+    matches.  If no *wildcards* are provided, then it performs a literal
+    match. For multiple patterns, use comma separation.
     """
     from . import checksums
 
     path = os.path.expanduser(path)
-    checksums.main(path, outfile, ignore, drop_hidden_files)
+    checksums.main(path, outfile, ignore, ignore_dirs, drop_hidden_files)
 
 
 if __name__ == "__main__":
