@@ -45,11 +45,16 @@ Usage: ptool checksums [OPTIONS] PATH
   Calculates imohash checksum of file(s) at the given path. Results are
   presented as csv.
 
+  `--ignore` and `--ignore-dirs` support *wildcards* in filtering down the
+  matches.  If no *wildcards* are provided, then it performs a literal match.
+  For multiple patterns, use comma separation.
+
 Options:
   --drop-hidden-files / --no-drop-hidden-files
                                   ignore hidden files  [default: drop-hidden-
                                   files]
-  --ignore TEXT                   ignore dirs or files
+  --ignore TEXT                   ignore files
+  --ignore-dirs TEXT              ignore directories
   -o, --outfile FILENAME          output filename
   --help                          Show this message and exit.
 ```
@@ -58,7 +63,7 @@ Lets say, `Ptool` is installed on Levante and the pool to take snap-shot is
 `fesom2` project, then invoke `checksum` as follows:
 
 ``` shell
-$ ptool checksums --drop-hidden-files --ignore dist_ -o levante_fesom2.csv /pool/data/AWICM/FESOM2
+$ ptool checksums --ignore dist_* -o levante_fesom2.csv /pool/data/AWICM/FESOM2
 Gathering files...
 skipping.. /pool/data/AWICM/FESOM2/FORCING/ERA5 -> /mnt/lustre01/work/ba1138/a270099/era5/forcing/inverted
 getting files Elapsed 0.71s
@@ -77,7 +82,7 @@ from both Albedo and Levante then we can also directly invoke `checksums`
 command on Levante from Albedo using ssh command as follows:
 
 ``` shell
-$ ssh a270243@levante.dkrz.de "~/miniforge3/envs/ptool/bin/ptool checksums /pool/data/AWICM/FESOM2 --drop-hidden-files --ignore dist_" > levante_fesom2.csv
+$ ssh a270243@levante.dkrz.de "~/miniforge3/envs/ptool/bin/ptool checksums /pool/data/AWICM/FESOM2 --ignore dist_*" > levante_fesom2.csv
 Gathering files...
 skipping.. /pool/data/AWICM/FESOM2/FORCING/ERA5 -> /mnt/lustre01/work/ba1138/a270099/era5/forcing/inverted
 getting files Elapsed 0.98s
