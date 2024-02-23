@@ -40,14 +40,16 @@ def read_csv(filename, ignore=None, drop_duplicates=False):
         df = df.drop_duplicates(subset=["checksum", "fname"])
         # df = df.drop_duplicates(subset=["checksum"])
     df["mtime"] = pd.to_datetime(df["mtime"], unit="s")
-    _, pool, site = os.path.basename(filename).split("_")
-    site, _ = os.path.splitext(site)
+    # _, pool, site = os.path.basename(filename).split("_")
+    # site, _ = os.path.splitext(site)
     df.filename = filename
-    df.pool = pool
-    df.site = site
+    # df.pool = pool
+    # df.site = site
+    df.site = os.path.splitext(os.path.basename(filename))[0]
     dups.filename = filename
-    dups.pool = pool
-    dups.site = site
+    # dups.pool = pool
+    # dups.site = site
+    dups.site = os.path.splitext(os.path.basename(filename))[0]
     return df, dups
 
 
@@ -255,11 +257,17 @@ def summary(
     right, right_dups = read_csv(
         filename2, ignore=ignore, drop_duplicates=drop_duplicates
     )
-    _, left_pool, left_site = filename1.split("_")
-    left_site, _ = os.path.splitext(left_site)
-    _, right_pool, right_site = filename2.split("_")
-    right_site, _ = os.path.splitext(right_site)
+    # _, left_pool, left_site = filename1.split("_")
+    # left_site, _ = os.path.splitext(left_site)
+    # _, right_pool, right_site = filename2.split("_")
+    # right_site, _ = os.path.splitext(right_site)
+    left_site = left.site
+    right_site = right.site
     hsize = lambda x: humanize.naturalsize(x)
+    left_pool = left.prefix.iloc[0]
+    left_pool = os.path.basename(left_pool.rstrip(os.path.sep))
+    right_pool = right.prefix.iloc[0]
+    right_pool = os.path.basename(right_pool.rstrip(os.path.sep))
     dset = {}
     dset[left_site] = {
         "pool": left_pool,
@@ -306,9 +314,7 @@ def summary(
         ] = f"{unique.shape[0]} ({hsize(unique.fsize_left.sum())})"
     df = pd.DataFrame(dset)
     table_no = itertools.count(1)
-    print(
-        f"\nTable {next(table_no)}: Summary with respect to {left_site.upper()} site\n"
-    )
+    print(f"\nTable {next(table_no)}: Summary with respect to {left_site.upper()} \n")
 
     import tabulate
 

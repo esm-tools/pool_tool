@@ -17,15 +17,11 @@ setup(
     packages=find_packages(include=["ptool"]),
     install_requires=[
         "click",
-        "pyyaml",
         "humanize",
         "tabulate",
         "pandas",
         "pyarrow",
         "imohash",
-        "paramiko",
-        "questionary",
-        "ruamel-yaml",
         "tqdm",
     ],
     entry_points="""
