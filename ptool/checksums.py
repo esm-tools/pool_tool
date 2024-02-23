@@ -6,7 +6,7 @@ import re
 import sys
 import time
 from contextlib import contextmanager
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import click
 from imohash import hashfile
@@ -51,8 +51,12 @@ def ignore_re(pattern: str = None) -> Callable:
     return ignore
 
 
-def split(s: str, sep: str = ",") -> List[str]:
-    """Split the string respecting escape `sep` character
+def split(s: str, sep: str = ",", escape: str = "\\") -> List[Optional[str]]:
+    """Split the string with respect to `sep` character
+
+    To preserve `sep` character in the string at certain places, prefix it with
+    escape character. The default escape character is "\\" but it can also
+    replaced with some other character if it is required. See examples.
 
     Examples:
 
@@ -64,33 +68,25 @@ def split(s: str, sep: str = ",") -> List[str]:
     ['a', 'b,c', 'd']
     >>> split("a|b\|c|d", sep="|")
     ['a', 'b|c', 'd']
+    >>> split("a|b#|c|d", sep="|", escape="#")
+    ['a', 'b|c', 'd']
     """
-    res = []
     if not s:
-        return res
-    it = iter(s.split(sep))
-    while True:
-        try:
-            item = next(it)
-        except StopIteration:
-            break
-        if item[-1] != "\\":
-            res.append(item)
+        return []
+    empty = ""
+    result = []
+    tmp = []
+    for part in s.split(sep):
+        if escape in part:
+            tmp.append(part.replace(escape, empty))
         else:
-            buf = []
-            buf.append(item[:-1] + sep)
-            while True:
-                try:
-                    item = next(it)
-                except StopIteration:
-                    break
-                if item[-1] == "\\":
-                    buf.append(item[:-1] + sep)
-                else:
-                    buf.append(item)
-                    res.append("".join(buf))
-                    break
-    return res
+            if tmp:
+                tmp.append(part)
+                result.append(f"{sep}".join(tmp))
+                tmp.clear()
+            else:
+                result.append(part)
+    return result
 
 
 @contextmanager
