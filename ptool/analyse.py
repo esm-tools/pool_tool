@@ -22,7 +22,7 @@ def read_csv(filename, ignore=None, drop_duplicates=False):
     df = df.rename(columns={"fname": "fpath"})
     df = df[df.checksum != "-"]
     df["fname"] = df.fpath.apply(os.path.basename)
-    df["prefix"] = os.path.commonprefix(list(df.fpath.apply(os.path.dirname)))
+    df["prefix"] = os.path.commonpath(list(df.fpath.apply(os.path.dirname)))
     df["rpath"] = df.fpath.str.removeprefix(df.prefix[0])
     df["rparent"] = df.rpath.apply(os.path.dirname)
     for name, dtype in df.dtypes.items():
