@@ -119,6 +119,9 @@ def sanitise(host, path):
 
 
 @cli.command()
+@click.option(
+    "-o", "--outfile", type=click.File("w"), default="sync_cmd.sh", help="file to write results"
+)
 @click.option("--ignore", help="ignores directory and files")
 @click.option(
     "--flags",
@@ -148,7 +151,7 @@ def sanitise(host, path):
 )
 @click.argument("left", required=True, type=click.Path())
 @click.argument("right", required=True, type=click.Path())
-def prepare_rsync(ignore, Flag, threshold, lefthost, righthost, left, right):
+def prepare_rsync(outfile, ignore, Flag, threshold, lefthost, righthost, left, right):
     """Prepares rsync commands for the transfer.
 
     Denpending on where data needs to pushed or pulled, provide
@@ -225,7 +228,7 @@ def prepare_rsync(ignore, Flag, threshold, lefthost, righthost, left, right):
         else:
             filelist.extend(list(grp.fname_left))
         if filelist:
-            fid = str(uuid.uuid4())[:8]
+            fid = str(uuid.uuid4())  # [:8]
             fmap[fid] = filelist
             if use_relative:
                 sync = f"rsync -av --files-from=flist/{fid} {sanitise(left_host, prefix_left)} {sanitise(right_host, prefix_right)}"
@@ -258,7 +261,7 @@ fi
     # syncs.append(f"rm {names}")
     syncs = "\n".join(syncs)
     # os.makedirs("flist", exist_ok=True)
-    with open("sync_cmd.sh", "w") as fid:
+    with open(outfile, "w") as fid:
         fid.writelines(syncs)
     # for name, fnames in fmap.items():
     #    with open(f"flist/{name}", "w") as fid:
