@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "ptool"
+version = "0.2.2"
+description = "Analyse project data in pool directory at various sites"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Pavan Siligam", email = "pavan.siligam@gmail.com" }]
+requires-python = ">=3.9"
+dependencies = [
+    "click",
+    "humanize",
+    "tabulate",
+    "pandas",
+    "pyarrow",
+    "imohash",
+    "tqdm",
+    "xxhash",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/esm-tools/pool_tool"
+Repository = "https://github.com/esm-tools/pool_tool"
+Issues = "https://github.com/esm-tools/pool_tool/issues"
+
+[project.scripts]
+ptool = "ptool.cli:cli"
+
+[tool.setuptools.packages.find]
+include = ["ptool"]
