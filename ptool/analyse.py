@@ -16,10 +16,20 @@ __all__ = [
 ]
 
 
+class _SnapshotFrame(pd.DataFrame):
+    """DataFrame subclass that carries snapshot metadata through pandas operations."""
+
+    _metadata = ["site", "filename"]
+
+    @property
+    def _constructor(self):
+        return _SnapshotFrame
+
+
 def read_csv(filename, ignore=None, drop_duplicates=False):
     filename = os.path.expanduser(filename)
-    df = pd.read_csv(filename, engine="pyarrow")
-    df = df.rename(columns={"fname": "fpath"})
+    df = _SnapshotFrame(pd.read_csv(filename, engine="pyarrow"))
+    df = df.rename(columns={"fname": "fpath", "md5": "checksum"})
     df = df[df.checksum != "-"]
     df["fname"] = df.fpath.apply(os.path.basename)
     df["prefix"] = os.path.commonpath(list(df.fpath.apply(os.path.dirname)))
@@ -27,51 +37,73 @@ def read_csv(filename, ignore=None, drop_duplicates=False):
     df["rparent"] = df.rpath.apply(os.path.dirname)
     for name, dtype in df.dtypes.items():
         if dtype == "object":
-            df[name] = df[name].astype("str[pyarrow]")
+            df[name] = df[name].astype("string[pyarrow]")
     if ignore:
         df = df[~df.rparent.str.contains(ignore)]
         df = df[~df.fname.str.contains(ignore)]
     df = df.sort_values(by=["checksum", "mtime"])
-    dups = df[
-        df.duplicated(subset=["checksum", "fname"]).values
-        # df.duplicated(subset=["checksum"]).values
-    ]
+    dups = df[df.duplicated(subset=["checksum", "fname"]).values]
     if drop_duplicates:
         df = df.drop_duplicates(subset=["checksum", "fname"])
-        # df = df.drop_duplicates(subset=["checksum"])
     df["mtime"] = pd.to_datetime(df["mtime"], unit="s")
-    # _, pool, site = os.path.basename(filename).split("_")
-    # site, _ = os.path.splitext(site)
     df.filename = filename
-    # df.pool = pool
-    # df.site = site
     df.site = os.path.splitext(os.path.basename(filename))[0]
-    dups.filename = filename
-    # dups.pool = pool
-    # dups.site = site
-    dups.site = os.path.splitext(os.path.basename(filename))[0]
     return df, dups
-
-
-def _group_with_max_counts(df, key="rparent_right"):
-    a = [(len(group), group) for gname, group in df.groupby(key)]
-    count, group = sorted(a, key=lambda x: x[0]).pop()
-    return group
 
 
 def merge(dl, da, on="checksum", how="inner"):
     m = pd.merge(dl, da, on=on, how=how, suffixes=("_left", "_right"))
-    mm = m.groupby("rparent_left").apply(_group_with_max_counts).reset_index(drop=True)
-    mm = (
-        mm.groupby("rparent_right")
-        .apply(lambda x: _group_with_max_counts(x, key="rparent_left"))
-        .reset_index(drop=True)
-    )
+    # TF-IDF weighted folder association:
+    # down-weight filenames that appear in many left directories (generic sequential
+    # names like my_list00001.out) so they don't drive false folder pairings.
+    # Files unique to one directory carry full weight; files ubiquitous across the
+    # pool carry near-zero weight.  IDF = log(total_dirs / dirs_containing_fname).
+    fname_col = "fname_left" if "fname_left" in m.columns else "fname"
+    n_dirs = max(dl["rparent"].nunique(), 1)
+    n_dirs_per_fname = dl.groupby("fname")["rparent"].nunique()
+    idf = np.log(n_dirs / n_dirs_per_fname).clip(lower=0.0)
+    m["_score"] = m[fname_col].map(idf).fillna(0.0)
+    # For each left folder, pick the right folder with the highest TF-IDF score,
+    # then repeat from the right side to enforce 1:1 pairing.
+    pair_scores = m.groupby(["rparent_left", "rparent_right"])["_score"].sum().reset_index()
+    best_right = pair_scores.loc[
+        pair_scores.groupby("rparent_left")["_score"].idxmax(),
+        ["rparent_left", "rparent_right"],
+    ]
+    mm = m.merge(best_right, on=["rparent_left", "rparent_right"])
+    pair_scores2 = mm.groupby(["rparent_left", "rparent_right"])["_score"].sum().reset_index()
+    best_left = pair_scores2.loc[
+        pair_scores2.groupby("rparent_right")["_score"].idxmax(),
+        ["rparent_left", "rparent_right"],
+    ]
+    mm = mm.merge(best_left, on=["rparent_left", "rparent_right"])
+    mm = mm.drop(columns=["_score"])
     return mm
 
 
 def directory_map(m):
     return (m[["rparent_left", "rparent_right"]]).drop_duplicates()
+
+
+def _suspicious_pairs(cmp):
+    """Return (rparent_left, rparent_right) pairs where every matched file is
+    modified and none are identical.
+
+    When two directories share filename patterns but hold different data (e.g.
+    MPI partition files for different core counts), all files appear as modified
+    and zero are identical. That pattern is a reliable indicator that the folder
+    mapping is spurious rather than a genuine sync mismatch.
+    """
+    c = cmp.reset_index()
+    paired = c[c["flag"] != "unique"]
+    bad = set()
+    for rparent_left, group in paired.groupby("rparent_left"):
+        flags = set(group["flag"].unique())
+        has_modified = bool(flags & {"modified_latest_left", "modified_latest_right"})
+        if has_modified and "identical" not in flags:
+            for rp_right in group["rparent_right"].dropna().unique():
+                bad.add((rparent_left, str(rp_right)))
+    return bad
 
 
 def compare(left, right, relabel=False, threshold=0.1):
@@ -180,7 +212,8 @@ def _correct_false_positive(df, threshold=0.1):
             ]
             + partial_dfs
         )
-    df = df.replace(r"^\s*$", np.nan, regex=True)
+    with pd.option_context("future.no_silent_downcasting", True):
+        df = df.replace(r"^\s*$", np.nan, regex=True)
     df.index = df.index.set_names("flag")
     return df
 
@@ -323,6 +356,7 @@ def summary(
     # dmap = directory_map(m)
     # dmap = dmap[dmap.rparent_left != dmap.rparent_right]
     dmap = (cmp[["rparent_left", "rparent_right"]]).dropna().drop_duplicates()
+    suspicious = _suspicious_pairs(cmp)
     print("-" * 70)
     if not dmap.empty:
         dmap.columns = [
@@ -330,8 +364,17 @@ def summary(
             for c in dmap.columns
         ]
         dmap = dmap.reset_index(drop=True)
+        if suspicious:
+            left_col = f"rparent_{left_site}"
+            right_col = f"rparent_{right_site}"
+            dmap["note"] = dmap.apply(
+                lambda r: "[!]" if (r[left_col], r[right_col]) in suspicious else "",
+                axis=1,
+            )
         print(f"\nTable {next(table_no)}: Common directory mapping\n")
         print(tabulate.tabulate(dmap, headers="keys"))
+        if suspicious:
+            print("\n[!] 100% modified, 0 identical — folder mapping is likely spurious.")
         print("-" * 70)
 
     c = cmp.reset_index()

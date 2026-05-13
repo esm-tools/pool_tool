@@ -62,11 +62,11 @@ def split(s: str, sep: str = ",", escape: str = "\\") -> List[Optional[str]]:
 
     >>> split("core1,core2")
     ["core1", "core2"]
-    >>> split("core1\,group,core2")
+    >>> split("core1\\,group,core2")
     ["core1,group", "core2"]
-    >>> split("a,b\,c,d")
+    >>> split("a,b\\,c,d")
     ['a', 'b,c', 'd']
-    >>> split("a|b\|c|d", sep="|")
+    >>> split("a|b\\|c|d", sep="|")
     ['a', 'b|c', 'd']
     >>> split("a|b#|c|d", sep="|", escape="#")
     ['a', 'b|c', 'd']
@@ -215,37 +215,3 @@ def main(path, outfile, ignore=None, ignore_dirs=None, drop_hidden_files=True):
     outfile.writelines(results)
 
 
-@click.command()
-@click.option(
-    "--drop-hidden-files/--no-drop-hidden-files",
-    default=True,
-    is_flag=True,
-    show_default=True,
-    help="ignore hidden files",
-)
-@click.option("--ignore", default=None, show_default=True, help="ignore files")
-@click.option(
-    "--ignore-dirs", default=None, show_default=True, help="ignore directories"
-)
-@click.option(
-    "-o", "--outfile", type=click.File("w"), default="-", help="output filename"
-)
-@click.argument("path")
-def cli(path, outfile, ignore, ignore_dirs, drop_hidden_files):
-    """path to file or folder.
-
-    Calculates imohash checksum of file(s) at the given path.
-    Results are presented as csv.
-    """
-    path = os.path.expanduser(path)
-    main(
-        path=path,
-        outfile=outfile,
-        ignore=ignore,
-        ignore_dirs=ignore_dirs,
-        drop_hidden_files=drop_hidden_files,
-    )
-
-
-if __name__ == "__main__":
-    cli()

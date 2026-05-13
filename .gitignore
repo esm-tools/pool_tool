@@ -1,3 +1,28 @@
-__pycache__
-ptool.egg-info
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environments
+.venv/
+.env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# HPC
 slurm-*.out
+
+# OS
+.DS_Store

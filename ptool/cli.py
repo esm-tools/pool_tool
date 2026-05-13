@@ -112,7 +112,12 @@ def summary(ignore, drop_duplicates, compact, threshold, left, right):
 
 
 def sanitise(host, path):
-    "sanitise the hostpart of the path"
+    """Prefix path with host for rsync.
+
+    AWI machines (*.awi.de) use a shared filesystem visible from both Levante
+    and Albedo, so no host prefix is needed — the path is used as-is.  All
+    other remote hosts get the standard ``user@host:path`` prefix.
+    """
     if (not host) or ("awi.de" in host):
         return path
     return f"{host}:{path}"
@@ -260,14 +265,8 @@ fi
     syncs.append("rm -rf flist")
     # syncs.append(f"rm {names}")
     syncs = "\n".join(syncs)
-    # os.makedirs("flist", exist_ok=True)
-    with open(outfile, "w") as fid:
-        fid.writelines(syncs)
-    # for name, fnames in fmap.items():
-    #    with open(f"flist/{name}", "w") as fid:
-    #        fnames = "\n".join(fnames)
-    #        fid.writelines(fnames)
-    print("Created sync_cmd.sh")
+    outfile.write(syncs)
+    print(f"Created {outfile.name}")
 
 
 @cli.command()
