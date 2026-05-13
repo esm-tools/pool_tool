@@ -85,6 +85,27 @@ def directory_map(m):
     return (m[["rparent_left", "rparent_right"]]).drop_duplicates()
 
 
+def _suspicious_pairs(cmp):
+    """Return (rparent_left, rparent_right) pairs where every matched file is
+    modified and none are identical.
+
+    When two directories share filename patterns but hold different data (e.g.
+    MPI partition files for different core counts), all files appear as modified
+    and zero are identical. That pattern is a reliable indicator that the folder
+    mapping is spurious rather than a genuine sync mismatch.
+    """
+    c = cmp.reset_index()
+    paired = c[c["flag"] != "unique"]
+    bad = set()
+    for rparent_left, group in paired.groupby("rparent_left"):
+        flags = set(group["flag"].unique())
+        has_modified = bool(flags & {"modified_latest_left", "modified_latest_right"})
+        if has_modified and "identical" not in flags:
+            for rp_right in group["rparent_right"].dropna().unique():
+                bad.add((rparent_left, str(rp_right)))
+    return bad
+
+
 def compare(left, right, relabel=False, threshold=0.1):
     by_hash = merge(left, right)
     by_name = merge(left, right, on="fname")
@@ -335,6 +356,7 @@ def summary(
     # dmap = directory_map(m)
     # dmap = dmap[dmap.rparent_left != dmap.rparent_right]
     dmap = (cmp[["rparent_left", "rparent_right"]]).dropna().drop_duplicates()
+    suspicious = _suspicious_pairs(cmp)
     print("-" * 70)
     if not dmap.empty:
         dmap.columns = [
@@ -342,8 +364,17 @@ def summary(
             for c in dmap.columns
         ]
         dmap = dmap.reset_index(drop=True)
+        if suspicious:
+            left_col = f"rparent_{left_site}"
+            right_col = f"rparent_{right_site}"
+            dmap["note"] = dmap.apply(
+                lambda r: "[!]" if (r[left_col], r[right_col]) in suspicious else "",
+                axis=1,
+            )
         print(f"\nTable {next(table_no)}: Common directory mapping\n")
         print(tabulate.tabulate(dmap, headers="keys"))
+        if suspicious:
+            print("\n[!] 100% modified, 0 identical — folder mapping is likely spurious.")
         print("-" * 70)
 
     c = cmp.reset_index()

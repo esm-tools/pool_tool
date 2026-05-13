@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from ptool.analyse import compare, compare_compact, directory_map, merge, read_csv
+from ptool.analyse import _suspicious_pairs, compare, compare_compact, directory_map, merge, read_csv
 from ptool.checksums import stats
 
 
@@ -243,3 +243,78 @@ class TestTFIDFFolderMapping:
         right, _ = read_csv(right_csv)
         m = merge(left, right)
         assert len(m) == 1
+
+
+def _make_csv_explicit(tmp_path, name, entries):
+    """Write a snapshot CSV with hand-crafted (checksum, fsize, mtime, fpath) rows.
+
+    Bypasses the filesystem so mtime can be controlled precisely — useful for
+    tests that need to distinguish modified_latest_left from modified_latest_right.
+    """
+    records = ["checksum,fsize,mtime,fpath"]
+    for checksum, fsize, mtime, fpath in entries:
+        records.append(f"{checksum},{fsize},{mtime},{fpath}")
+    csv_path = tmp_path / f"{name}.csv"
+    csv_path.write_text("\n".join(records) + "\n")
+    return str(csv_path)
+
+
+class TestSuspiciousPairs:
+    """_suspicious_pairs() should flag folder mappings where every paired file
+    is modified and none are identical — the signature of a false association."""
+
+    def test_all_modified_flagged(self, tmp_path):
+        """Two dirs sharing filenames but different content → suspicious."""
+        left_csv = _make_csv_explicit(tmp_path, "left", [
+            ("imohash:aaa", 512, 1000.0, "/pool/left/dir_a/file1.nc"),
+            ("imohash:bbb", 512, 1000.0, "/pool/left/dir_a/file2.nc"),
+            ("imohash:eee", 512, 1000.0, "/pool/left/dir_b/other.nc"),
+        ])
+        right_csv = _make_csv_explicit(tmp_path, "right", [
+            ("imohash:ccc", 512, 2000.0, "/pool/right/dir_x/file1.nc"),
+            ("imohash:ddd", 512, 2000.0, "/pool/right/dir_x/file2.nc"),
+            ("imohash:eee", 512, 1000.0, "/pool/right/dir_y/other.nc"),
+        ])
+        left, _ = read_csv(left_csv)
+        right, _ = read_csv(right_csv)
+        cmp = compare(left, right)
+
+        suspicious = _suspicious_pairs(cmp)
+        assert len(suspicious) == 1
+        left_dirs = {pair[0] for pair in suspicious}
+        assert any(d.endswith("dir_a") for d in left_dirs)
+
+    def test_mix_identical_and_modified_not_flagged(self, tmp_path):
+        """A pair with at least one identical file should never be flagged."""
+        shared_cs = "imohash:shared00"
+        left_csv = _make_csv_explicit(tmp_path, "left", [
+            (shared_cs,    512, 1000.0, "/pool/left/dir_a/shared.nc"),
+            ("imohash:aaa", 512, 1000.0, "/pool/left/dir_a/changed.nc"),
+        ])
+        right_csv = _make_csv_explicit(tmp_path, "right", [
+            (shared_cs,    512, 1000.0, "/pool/right/dir_x/shared.nc"),
+            ("imohash:bbb", 512, 2000.0, "/pool/right/dir_x/changed.nc"),
+        ])
+        left, _ = read_csv(left_csv)
+        right, _ = read_csv(right_csv)
+        cmp = compare(left, right)
+
+        suspicious = _suspicious_pairs(cmp)
+        assert len(suspicious) == 0, (
+            "dir_a/dir_x has an identical file — should not be flagged as suspicious"
+        )
+
+    def test_unique_only_dir_not_flagged(self, tmp_path):
+        """A left directory with no right counterpart (all unique) should not be flagged."""
+        left_csv = _make_csv_explicit(tmp_path, "left", [
+            ("imohash:aaa", 512, 1000.0, "/pool/left/dir_a/only_left.nc"),
+        ])
+        right_csv = _make_csv_explicit(tmp_path, "right", [
+            ("imohash:bbb", 512, 1000.0, "/pool/right/dir_x/only_right.nc"),
+        ])
+        left, _ = read_csv(left_csv)
+        right, _ = read_csv(right_csv)
+        cmp = compare(left, right)
+
+        suspicious = _suspicious_pairs(cmp)
+        assert len(suspicious) == 0
