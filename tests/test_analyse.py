@@ -157,3 +157,89 @@ class TestMergeAndDirectoryMap:
         dm = directory_map(m)
         assert "rparent_left" in dm.columns
         assert "rparent_right" in dm.columns
+
+
+class TestTFIDFFolderMapping:
+    """TF-IDF weighted association should prefer specific (rare) filenames over
+    generic (ubiquitous) ones when mapping directories across sites.
+
+    Scenario mirroring the real-world fArc_sorted false mapping:
+      Left side has three directories that all share three generic files
+      (IDF ≈ 0). dir_a also has one specific file (IDF = log 3 ≈ 1.10).
+      Right side has:
+        dir_x — specific_a + 1 generic  (2 raw matches with dir_a)
+        dir_y — 3 generics              (3 raw matches with dir_a — wins on raw count)
+      Raw count would map dir_a → dir_y (wrong).
+      TF-IDF maps dir_a → dir_x (correct).
+    """
+
+    def _build_pool(self, base, subdirs, files_per_subdir):
+        """Create directory tree and return {relative_path: content} dict."""
+        for d in subdirs:
+            (base / d).mkdir(parents=True, exist_ok=True)
+        result = {}
+        for subdir, files in files_per_subdir.items():
+            for fname, content in files.items():
+                result[f"{subdir}/{fname}"] = content
+        return result
+
+    def test_tfidf_prefers_specific_over_generic(self, tmp_path):
+        generic  = b"\xAA" * 512
+        generic2 = b"\xBB" * 512
+        generic3 = b"\xCC" * 512
+        specific = b"\xDD" * 512
+
+        left_base = tmp_path / "left"
+        for d in ["dir_a", "dir_b", "dir_c"]:
+            (left_base / d).mkdir(parents=True)
+
+        # dir_a: 3 generic files (appear in all 3 left dirs) + 1 specific file
+        # dir_b, dir_c: only the 3 generic files → IDF of generics = log(3/3) = 0
+        left_files = self._build_pool(left_base, [], {
+            "dir_a": {"generic.nc": generic, "generic2.nc": generic2,
+                      "generic3.nc": generic3, "specific_a.nc": specific},
+            "dir_b": {"generic.nc": generic, "generic2.nc": generic2, "generic3.nc": generic3},
+            "dir_c": {"generic.nc": generic, "generic2.nc": generic2, "generic3.nc": generic3},
+        })
+        left_csv = _make_csv(left_base, "left", left_files)
+
+        right_base = tmp_path / "right"
+        for d in ["dir_x", "dir_y"]:
+            (right_base / d).mkdir(parents=True)
+
+        # dir_x: specific_a + 1 generic → 2 raw matches with dir_a
+        # dir_y: all 3 generics        → 3 raw matches with dir_a (raw count picks this — wrong)
+        right_files = self._build_pool(right_base, [], {
+            "dir_x": {"specific_a.nc": specific, "generic.nc": generic},
+            "dir_y": {"generic.nc": generic, "generic2.nc": generic2, "generic3.nc": generic3},
+        })
+        right_csv = _make_csv(right_base, "right", right_files)
+
+        left, _ = read_csv(left_csv)
+        right, _ = read_csv(right_csv)
+        m = merge(left, right)
+        dm = directory_map(m)
+
+        # dir_a must map to dir_x (driven by specific_a), not dir_y (more generic matches)
+        dir_a_row = dm[dm.rparent_left.str.endswith("dir_a")]
+        assert len(dir_a_row) == 1, "dir_a should have exactly one mapping"
+        assert dir_a_row.rparent_right.iloc[0].endswith("dir_x"), (
+            f"dir_a mapped to {dir_a_row.rparent_right.iloc[0]!r} — "
+            "expected dir_x (specific file); raw-count would pick dir_y"
+        )
+
+    def test_unique_files_still_map_correctly(self, tmp_path):
+        """When all filenames are unique (no generics), TF-IDF behaves like raw count."""
+        left_base = tmp_path / "left"
+        right_base = tmp_path / "right"
+        (left_base / "pool").mkdir(parents=True)
+        (right_base / "pool").mkdir(parents=True)
+
+        content = b"\xEE" * 512
+        left_csv = _make_csv(left_base, "left", {"pool/data.nc": content})
+        right_csv = _make_csv(right_base, "right", {"pool/data.nc": content})
+
+        left, _ = read_csv(left_csv)
+        right, _ = read_csv(right_csv)
+        m = merge(left, right)
+        assert len(m) == 1

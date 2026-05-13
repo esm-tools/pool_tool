@@ -29,7 +29,7 @@ class _SnapshotFrame(pd.DataFrame):
 def read_csv(filename, ignore=None, drop_duplicates=False):
     filename = os.path.expanduser(filename)
     df = _SnapshotFrame(pd.read_csv(filename, engine="pyarrow"))
-    df = df.rename(columns={"fname": "fpath"})
+    df = df.rename(columns={"fname": "fpath", "md5": "checksum"})
     df = df[df.checksum != "-"]
     df["fname"] = df.fpath.apply(os.path.basename)
     df["prefix"] = os.path.commonpath(list(df.fpath.apply(os.path.dirname)))
@@ -53,21 +53,31 @@ def read_csv(filename, ignore=None, drop_duplicates=False):
 
 def merge(dl, da, on="checksum", how="inner"):
     m = pd.merge(dl, da, on=on, how=how, suffixes=("_left", "_right"))
-    # For each left folder, keep only rows belonging to the right folder
-    # with the most file matches (max-association wins), then repeat from
-    # the right side to enforce a 1:1 folder pairing.
-    pair_counts = m.groupby(["rparent_left", "rparent_right"]).size().reset_index(name="_n")
-    best_right = pair_counts.loc[
-        pair_counts.groupby("rparent_left")["_n"].idxmax(),
+    # TF-IDF weighted folder association:
+    # down-weight filenames that appear in many left directories (generic sequential
+    # names like my_list00001.out) so they don't drive false folder pairings.
+    # Files unique to one directory carry full weight; files ubiquitous across the
+    # pool carry near-zero weight.  IDF = log(total_dirs / dirs_containing_fname).
+    fname_col = "fname_left" if "fname_left" in m.columns else "fname"
+    n_dirs = max(dl["rparent"].nunique(), 1)
+    n_dirs_per_fname = dl.groupby("fname")["rparent"].nunique()
+    idf = np.log(n_dirs / n_dirs_per_fname).clip(lower=0.0)
+    m["_score"] = m[fname_col].map(idf).fillna(0.0)
+    # For each left folder, pick the right folder with the highest TF-IDF score,
+    # then repeat from the right side to enforce 1:1 pairing.
+    pair_scores = m.groupby(["rparent_left", "rparent_right"])["_score"].sum().reset_index()
+    best_right = pair_scores.loc[
+        pair_scores.groupby("rparent_left")["_score"].idxmax(),
         ["rparent_left", "rparent_right"],
     ]
     mm = m.merge(best_right, on=["rparent_left", "rparent_right"])
-    pair_counts2 = mm.groupby(["rparent_left", "rparent_right"]).size().reset_index(name="_n")
-    best_left = pair_counts2.loc[
-        pair_counts2.groupby("rparent_right")["_n"].idxmax(),
+    pair_scores2 = mm.groupby(["rparent_left", "rparent_right"])["_score"].sum().reset_index()
+    best_left = pair_scores2.loc[
+        pair_scores2.groupby("rparent_right")["_score"].idxmax(),
         ["rparent_left", "rparent_right"],
     ]
     mm = mm.merge(best_left, on=["rparent_left", "rparent_right"])
+    mm = mm.drop(columns=["_score"])
     return mm
 
 
@@ -181,7 +191,8 @@ def _correct_false_positive(df, threshold=0.1):
             ]
             + partial_dfs
         )
-    df = df.replace(r"^\s*$", np.nan, regex=True)
+    with pd.option_context("future.no_silent_downcasting", True):
+        df = df.replace(r"^\s*$", np.nan, regex=True)
     df.index = df.index.set_names("flag")
     return df
 
