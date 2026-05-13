@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import fnmatch
+import hashlib
 import os
 import re
 import sys
@@ -11,6 +12,8 @@ from typing import Callable, List, Optional
 import click
 from imohash import hashfile
 from tqdm.contrib.concurrent import process_map
+
+IMOHASH_SAMPLE_SIZE = 64 * 1024  # upgraded from 16 KB to reduce false-negative risk
 
 not_hidden_files_or_dirs = re.compile(r"^[^.]").match
 
@@ -117,21 +120,52 @@ class Results:
         return self.value
 
 
-def hasher(filename):
-    "Calucates imohash for a given file"
-    return f"imohash:{hashfile(filename, hexdigest=True)}"
+def _imohash(filename):
+    return f"imohash-64k:{hashfile(filename, sample_size=IMOHASH_SAMPLE_SIZE, hexdigest=True)}"
 
 
-def stats(fpath, stat=os.stat):
-    "Generates record with imohash and file stats information"
-    try:
-        checksum = hasher(fpath)
-        st = stat(fpath)
-        record = f"{checksum},{st.st_size},{st.st_mtime},{fpath}"
-        record = Results(value=record)
-    except Exception as e:
-        record = Results(exc=f"{str(e)}")
-    return record
+def _md5(filename):
+    h = hashlib.md5()
+    with open(filename, "rb") as f:
+        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
+            h.update(chunk)
+    return f"md5:{h.hexdigest()}"
+
+
+def _xxhash(filename):
+    import xxhash
+    h = xxhash.xxh3_64()
+    with open(filename, "rb") as f:
+        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
+            h.update(chunk)
+    return f"xxhash:{h.hexdigest()}"
+
+
+HASHERS = {
+    "imohash-64k": _imohash,
+    "md5": _md5,
+    "xxhash": _xxhash,
+}
+
+
+def make_stats(checksum_type):
+    "Returns a stats function bound to the given checksum type"
+    hasher = HASHERS[checksum_type]
+
+    def stats(fpath, stat=os.stat):
+        try:
+            checksum = hasher(fpath)
+            st = stat(fpath)
+            record = f"{checksum},{st.st_size},{st.st_mtime},{fpath}"
+            return Results(value=record)
+        except Exception as e:
+            return Results(exc=f"{str(e)}")
+
+    return stats
+
+
+# default stats function for backwards-compatible use
+stats = make_stats("imohash-64k")
 
 
 def scanner(path, ignore=None, ignore_dirs=None, drop_hidden_files=True):
@@ -178,8 +212,8 @@ def get_files(path, ignore=None, ignore_dirs=None, drop_hidden_files=True):
     return list(files_iter)
 
 
-def main(path, outfile, ignore=None, ignore_dirs=None, drop_hidden_files=True):
-    "Calculates hashs of all the files in parallel"
+def main(path, outfile, ignore=None, ignore_dirs=None, drop_hidden_files=True, checksum_type="imohash-64k"):
+    "Calculates hashes of all the files in parallel"
     echo("Gathering files...")
     with timethis("getting files"):
         if os.path.isdir(path):
@@ -194,11 +228,12 @@ def main(path, outfile, ignore=None, ignore_dirs=None, drop_hidden_files=True):
     nfiles = len(files)
     echo(f"nfiles: {nfiles}")
     results = ["checksum,fsize,mtime,fpath"]
-    echo("Calculating hashes...")
+    echo(f"Calculating hashes ({checksum_type})...")
     errors = []
+    stats_fn = make_stats(checksum_type)
     with timethis("calculating hashes"):
         futures = process_map(
-            stats, files, chunksize=10, max_workers=os.cpu_count(), unit="files"
+            stats_fn, files, chunksize=10, max_workers=os.cpu_count(), unit="files"
         )
         for item in futures:
             if item.has_error():
@@ -230,11 +265,20 @@ def main(path, outfile, ignore=None, ignore_dirs=None, drop_hidden_files=True):
 @click.option(
     "-o", "--outfile", type=click.File("w"), default="-", help="output filename"
 )
+@click.option(
+    "--checksum-type",
+    type=click.Choice(list(HASHERS)),
+    default="imohash-64k",
+    show_default=True,
+    help="checksum algorithm to use. imohash-64k is fast (samples 3×64KB) but "
+         "may miss changes in unsampled regions of large files. xxhash and md5 "
+         "read the full file and are collision-free but slower on large files.",
+)
 @click.argument("path")
-def cli(path, outfile, ignore, ignore_dirs, drop_hidden_files):
+def cli(path, outfile, ignore, ignore_dirs, drop_hidden_files, checksum_type):
     """path to file or folder.
 
-    Calculates imohash checksum of file(s) at the given path.
+    Calculates checksum of file(s) at the given path.
     Results are presented as csv.
     """
     path = os.path.expanduser(path)
@@ -244,6 +288,7 @@ def cli(path, outfile, ignore, ignore_dirs, drop_hidden_files):
         ignore=ignore,
         ignore_dirs=ignore_dirs,
         drop_hidden_files=drop_hidden_files,
+        checksum_type=checksum_type,
     )
 
 

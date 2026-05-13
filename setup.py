@@ -23,7 +23,11 @@ setup(
         "pyarrow",
         "imohash",
         "tqdm",
+        "xxhash",
     ],
+    extras_require={
+        "dev": ["pytest"],
+    },
     entry_points="""
         [console_scripts]
         ptool=ptool.cli:cli

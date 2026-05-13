@@ -285,19 +285,28 @@ fi
 @click.option(
     "-o", "--outfile", type=click.File("w"), default="-", help="output filename"
 )
+@click.option(
+    "--checksum-type",
+    type=click.Choice(["imohash-64k", "md5", "xxhash"]),
+    default="imohash-64k",
+    show_default=True,
+    help="checksum algorithm. imohash-64k is fast but samples only 3×64KB of "
+         "large files. xxhash and md5 read files fully and are collision-free "
+         "but slower. Both CSVs being compared must use the same algorithm.",
+)
 @click.argument("path")
-def checksums(path, outfile, ignore, ignore_dirs, drop_hidden_files):
-    """Calculates imohash checksum of file(s) at the given path.
+def checksums(path, outfile, ignore, ignore_dirs, drop_hidden_files, checksum_type):
+    """Calculates checksum of file(s) at the given path.
     Results are presented as csv.
 
     `--ignore` and `--ignore-dirs` support *wildcards* in filtering down the
     matches.  If no *wildcards* are provided, then it performs a literal
     match. For multiple patterns, use comma separation.
     """
-    from . import checksums
+    from . import checksums as cs
 
     path = os.path.expanduser(path)
-    checksums.main(path, outfile, ignore, ignore_dirs, drop_hidden_files)
+    cs.main(path, outfile, ignore, ignore_dirs, drop_hidden_files, checksum_type)
 
 
 if __name__ == "__main__":
