@@ -1,9 +1,11 @@
-import os
 import itertools
-import pandas as pd
-import numpy as np
-import humanize
+import os
 from collections import defaultdict
+
+import click
+import humanize
+import numpy as np
+import pandas as pd
 
 __all__ = [
     "read_csv",
@@ -31,6 +33,7 @@ def read_csv(filename, ignore=None, drop_duplicates=False):
     if ignore:
         df = df[~df.rparent.str.contains(ignore)]
         df = df[~df.fname.str.contains(ignore)]
+    df["checksum_type"] = df.checksum.str.split(":").str[0]
     df = df.sort_values(by=["checksum", "mtime"])
     dups = df[
         df.duplicated(subset=["checksum", "fname"]).values
@@ -74,7 +77,18 @@ def directory_map(m):
     return (m[["rparent_left", "rparent_right"]]).drop_duplicates()
 
 
+def _assert_compatible_checksums(left, right):
+    lt = left.checksum_type.iloc[0]
+    rt = right.checksum_type.iloc[0]
+    if lt != rt:
+        raise click.UsageError(
+            f"Checksum type mismatch: left CSV uses '{lt}' but right CSV uses '{rt}'. "
+            "Re-generate both snapshots with the same --checksum-type before comparing."
+        )
+
+
 def compare(left, right, relabel=False, threshold=0.1):
+    _assert_compatible_checksums(left, right)
     by_hash = merge(left, right)
     by_name = merge(left, right, on="fname")
     by_hash["flag"] = ""
