@@ -27,7 +27,7 @@ def read_csv(filename, ignore=None, drop_duplicates=False):
     df["rparent"] = df.rpath.apply(os.path.dirname)
     for name, dtype in df.dtypes.items():
         if dtype == "object":
-            df[name] = df[name].astype("str[pyarrow]")
+            df[name] = df[name].astype("string[pyarrow]")
     if ignore:
         df = df[~df.rparent.str.contains(ignore)]
         df = df[~df.fname.str.contains(ignore)]
