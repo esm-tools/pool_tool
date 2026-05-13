@@ -11,6 +11,9 @@ ptool provides tools to synchronise the state between pools on different machine
 
 ## Contents
 
+- [How it works](#how-it-works)
+  - [File association](#file-association)
+  - [Folder mapping](#folder-mapping)
 - [Installation](#installation)
 - [Usage](#usage)
   - [checksums](#checksums-snapshot-of-a-pool)
@@ -19,6 +22,37 @@ ptool provides tools to synchronise the state between pools on different machine
   - [prepare-rsync](#prepare-rsync)
 - [Checksum algorithms](#checksum-algorithms)
 - [Contributing](#contributing)
+
+## How it works
+
+ptool compares pools by taking a **snapshot** (a CSV of checksums + metadata) of each site and
+analysing the two CSVs locally. No direct connection between sites is required at analysis time.
+
+### File association
+
+Every file pair is classified using two signals: whether the checksum matches and whether the
+filename matches.
+
+| Checksum | Filename | Classification |
+|----------|----------|----------------|
+| same | same | `identical` — exact copy |
+| different | same | `modified` — content changed; mtime indicates which copy is newer |
+| same | different | `renamed` — content preserved, name changed |
+| different | different | `unique` — file exists only on the left site |
+
+`compare` and `summary` use these labels to report what needs to be transferred and what is
+already in sync.
+
+### Folder mapping
+
+Pools on different sites often use different directory layouts. ptool automatically maps
+corresponding folders by finding which folder pair has the highest number of matching files
+(**max-association wins**). Each folder on the left is paired with at most one folder on the right.
+
+The `--threshold` option (default `0.1`) controls false-positive filtering: if fewer than 10 % of
+files in a left folder are associated with a right folder, the association is treated as noise and
+those files are reclassified as `unique`. Raise the threshold to be stricter; lower it to allow
+sparse associations.
 
 ## Installation
 

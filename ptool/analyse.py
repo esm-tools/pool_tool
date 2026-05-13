@@ -16,9 +16,19 @@ __all__ = [
 ]
 
 
+class _SnapshotFrame(pd.DataFrame):
+    """DataFrame subclass that carries snapshot metadata through pandas operations."""
+
+    _metadata = ["site", "filename"]
+
+    @property
+    def _constructor(self):
+        return _SnapshotFrame
+
+
 def read_csv(filename, ignore=None, drop_duplicates=False):
     filename = os.path.expanduser(filename)
-    df = pd.read_csv(filename, engine="pyarrow")
+    df = _SnapshotFrame(pd.read_csv(filename, engine="pyarrow"))
     df = df.rename(columns={"fname": "fpath"})
     df = df[df.checksum != "-"]
     df["fname"] = df.fpath.apply(os.path.basename)
@@ -32,41 +42,32 @@ def read_csv(filename, ignore=None, drop_duplicates=False):
         df = df[~df.rparent.str.contains(ignore)]
         df = df[~df.fname.str.contains(ignore)]
     df = df.sort_values(by=["checksum", "mtime"])
-    dups = df[
-        df.duplicated(subset=["checksum", "fname"]).values
-        # df.duplicated(subset=["checksum"]).values
-    ]
+    dups = df[df.duplicated(subset=["checksum", "fname"]).values]
     if drop_duplicates:
         df = df.drop_duplicates(subset=["checksum", "fname"])
-        # df = df.drop_duplicates(subset=["checksum"])
     df["mtime"] = pd.to_datetime(df["mtime"], unit="s")
-    # _, pool, site = os.path.basename(filename).split("_")
-    # site, _ = os.path.splitext(site)
     df.filename = filename
-    # df.pool = pool
-    # df.site = site
     df.site = os.path.splitext(os.path.basename(filename))[0]
-    dups.filename = filename
-    # dups.pool = pool
-    # dups.site = site
-    dups.site = os.path.splitext(os.path.basename(filename))[0]
     return df, dups
-
-
-def _group_with_max_counts(df, key="rparent_right"):
-    a = [(len(group), group) for gname, group in df.groupby(key)]
-    count, group = sorted(a, key=lambda x: x[0]).pop()
-    return group
 
 
 def merge(dl, da, on="checksum", how="inner"):
     m = pd.merge(dl, da, on=on, how=how, suffixes=("_left", "_right"))
-    mm = m.groupby("rparent_left").apply(_group_with_max_counts).reset_index(drop=True)
-    mm = (
-        mm.groupby("rparent_right")
-        .apply(lambda x: _group_with_max_counts(x, key="rparent_left"))
-        .reset_index(drop=True)
-    )
+    # For each left folder, keep only rows belonging to the right folder
+    # with the most file matches (max-association wins), then repeat from
+    # the right side to enforce a 1:1 folder pairing.
+    pair_counts = m.groupby(["rparent_left", "rparent_right"]).size().reset_index(name="_n")
+    best_right = pair_counts.loc[
+        pair_counts.groupby("rparent_left")["_n"].idxmax(),
+        ["rparent_left", "rparent_right"],
+    ]
+    mm = m.merge(best_right, on=["rparent_left", "rparent_right"])
+    pair_counts2 = mm.groupby(["rparent_left", "rparent_right"]).size().reset_index(name="_n")
+    best_left = pair_counts2.loc[
+        pair_counts2.groupby("rparent_right")["_n"].idxmax(),
+        ["rparent_left", "rparent_right"],
+    ]
+    mm = mm.merge(best_left, on=["rparent_left", "rparent_right"])
     return mm
 
 
