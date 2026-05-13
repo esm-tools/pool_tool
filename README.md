@@ -1,49 +1,68 @@
-# Ptool
+# ptool
 
-A tool to manage pools across different sites. With Ptool it is possible to take
-snap-shot of a pool at regular intervals and compare them to monitor the changes
-to the pool overtime. These snap-shots can be from the same machine or from
-different machines. It also provides tools to sync the state between pool on
-different machines.
+[![CI](https://github.com/esm-tools/pool_tool/actions/workflows/ci.yml/badge.svg)](https://github.com/esm-tools/pool_tool/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org)
+
+A tool to manage data pools across different HPC sites. With ptool you can take
+snapshots of a pool at regular intervals and compare them to monitor changes over
+time. Snapshots can be taken on the same machine or on different machines, and
+ptool provides tools to synchronise the state between pools on different machines.
+
+## Contents
+
+- [Installation](#installation)
+- [Usage](#usage)
+  - [checksums](#checksums-snapshot-of-a-pool)
+  - [summary](#summary)
+  - [compare](#compare)
+  - [prepare-rsync](#prepare-rsync)
+- [Checksum algorithms](#checksum-algorithms)
+- [Contributing](#contributing)
 
 ## Installation
 
-The current approach is to clone the repository on the machine where `Ptool` needs
-to installed
+Clone the repository on the machine where ptool needs to be installed:
 
-``` shell
+```shell
 git clone https://github.com/esm-tools/pool_tool.git
 cd pool_tool
 ```
 
-Create a virtual environment, either using `conda` or `pyvenv` to install the package.
+Create a conda environment and install the package:
 
-### Using Conda
-
-``` shell
-conda env create -f environment.yml
+```shell
+conda env create -f environment.yaml
 conda activate ptool
-pip install .
+pip install -e .
 ```
 
-### Usage
+For development (includes test dependencies):
 
-`Ptool` provides 4 commands to manage the pool.
-  - `checksums` to create snap-shot of the pool
-  - `summary` to get an overview by comparing 2 snap-shots
-  - `compare` to write concrete results of comparing 2 snap-shots
-  - `prepare-rsync` produces script to transfer files from one machine to another
-  
-#### `checksums` (snap-shot of pool)
+```shell
+pip install -e ".[dev]"
+pytest tests/ -v
+```
 
-Getting the help text to see the all the options
+## Usage
 
-``` shell
+ptool provides four commands to manage pools:
+
+| Command | Purpose |
+|---------|---------|
+| `checksums` | Create a snapshot of a pool as a CSV |
+| `summary` | High-level overview of two snapshots |
+| `compare` | Per-file comparison of two snapshots |
+| `prepare-rsync` | Generate a script to transfer files between sites |
+
+### checksums (snapshot of a pool)
+
+```shell
 $ ptool checksums --help
 Usage: ptool checksums [OPTIONS] PATH
 
-  Calculates imohash checksum of file(s) at the given path. Results are
-  presented as csv.
+  Calculates checksum of file(s) at the given path.
+  Results are presented as csv.
 
   `--ignore` and `--ignore-dirs` support *wildcards* in filtering down the
   matches.  If no *wildcards* are provided, then it performs a literal match.
@@ -51,18 +70,16 @@ Usage: ptool checksums [OPTIONS] PATH
 
 Options:
   --drop-hidden-files / --no-drop-hidden-files
-                                  ignore hidden files  [default: drop-hidden-
-                                  files]
+                                  ignore hidden files  [default: drop-hidden-files]
   --ignore TEXT                   ignore files
   --ignore-dirs TEXT              ignore directories
   -o, --outfile FILENAME          output filename
   --help                          Show this message and exit.
 ```
 
-Lets say, `Ptool` is installed on Levante and the pool to take snap-shot is
-`fesom2` project, then invoke `checksum` as follows:
+Taking a snapshot of the `fesom2` pool on Levante:
 
-``` shell
+```shell
 $ ptool checksums --ignore-dirs dist_* -o levante_fesom2.csv /pool/data/AWICM/FESOM2
 Gathering files...
 skipping.. /pool/data/AWICM/FESOM2/FORCING/ERA5 -> /mnt/lustre01/work/ba1138/a270099/era5/forcing/inverted
@@ -74,41 +91,31 @@ calculating hashes Elapsed 3.21s
 Writing results to levante_fesom2.csv
 ```
 
+The output CSV has four columns: `checksum`, `fsize`, `mtime`, `fpath`.
+
+> **Note:** The filename you choose for the CSV is used as the site label in
+> analysis output, so pick a meaningful name (e.g. `levante_fesom2.csv`).
+
 #### Remote checksums
 
-It is also possible to get the `checksums` of pool on the remote site. Lets say
-we are on Albedo machine and want to compare snap-shot for the project `fesom2`
-from both Albedo and Levante then we can also directly invoke `checksums`
-command on Levante from Albedo using ssh command as follows:
+You can invoke `checksums` on a remote machine via SSH and pipe the output
+to a local file. This is useful when you want to collect snapshots on the
+machine where analysis will be run:
 
-``` shell
-$ ssh a270243@levante.dkrz.de "~/miniforge3/envs/ptool/bin/ptool checksums /pool/data/AWICM/FESOM2 --ignore-dirs dist_*" > levante_fesom2.csv
-Gathering files...
-skipping.. /pool/data/AWICM/FESOM2/FORCING/ERA5 -> /mnt/lustre01/work/ba1138/a270099/era5/forcing/inverted
-getting files Elapsed 0.22s
-nfiles: 3060
-Calculating hashes...
-100%|██████████| 3060/3060 [00:01<00:00, 1610.56files/s]
-calculating hashes Elapsed 3.21s
-Writing results to <stdout>
+```shell
+$ ssh a270243@levante.dkrz.de \
+    "~/miniforge3/envs/ptool/bin/ptool checksums /pool/data/AWICM/FESOM2 --ignore-dirs dist_*" \
+    > levante_fesom2.csv
 ```
 
-In the above command, since there is no `-o/--outfile` option provided, the
-results are written to `<stdout>` which is piped to a local file on Albedo. It
-is also certainly possible to write the snap-shot results to a file on Levante
-and then copy it over to Albedo. It is up-to the user, how they want to trigger
-the computation but the main point here is the user is supposed to gather the
-snap-shots on to the machine where further analysis is carried out.
+When no `-o/--outfile` is given, results are written to stdout and can be
+redirected to a local file.
 
-NOTE:
-User is free to choose any meaningful name for the csv file as they see fit. The
-same name is used in displaying the results in the analysis part.
+### summary
 
-#### Summary
+Get a high-level overview of two snapshots:
 
-Lets say we have computed the snap-shot for the project pool `fesom2` on both Levante and Albedo, then invoke `summary` as follows to get a quick overview of the states these pool are in
-
-``` shell
+```shell
 $ ptool summary --compact levante_fesom2.csv albedo_fesom2.csv
 
 Table 1: Summary with respect to LEVANTE_FESOM2
@@ -152,145 +159,122 @@ MESHES/CORE2           -                     9  -               9
 ----------------------------------------------------------------------
 ```
 
-There are more options available for `summary` command to alter the results. Use
-the `ptool summary --help` to see and investigate other options.
+Run `ptool summary --help` to see all available options.
 
-#### comapre
+### compare
 
-To get the specifics of the per-files associations, use the compare command as
-follows
+Get per-file comparison results:
 
-``` shell
-$ ptool compare -o lev_alb_fesom2_cmp.csv levante_fesom2.csv albedo_fesom2.csv 
+```shell
+$ ptool compare -o lev_alb_fesom2_cmp.csv levante_fesom2.csv albedo_fesom2.csv
 Writing results as csv to file lev_alb_fesom2_cmp.csv
                                           rpath_left                         rpath_right
-flag                                                                                    
+flag
 identical          FORCING/CORE2/ncar_precip.1948.nc  /forcing/CORE2/ncar_precip.1948.nc
 identical          FORCING/CORE2/ncar_precip.1952.nc  /forcing/CORE2/ncar_precip.1952.nc
-identical          FORCING/CORE2/ncar_precip.1955.nc  /forcing/CORE2/ncar_precip.1955.nc
-identical          FORCING/CORE2/ncar_precip.1953.nc  /forcing/CORE2/ncar_precip.1953.nc
-identical          FORCING/CORE2/ncar_precip.1956.nc  /forcing/CORE2/ncar_precip.1956.nc
-...                                              ...                                 ...
+...
 unique     FORCING/era5/forcing/inverted/t2m.1972.nc                                 NaN
-unique     FORCING/era5/forcing/inverted/t2m.1940.nc                                 NaN
-unique     FORCING/era5/forcing/inverted/t2m.1948.nc                                 NaN
-unique     FORCING/era5/forcing/inverted/t2m.1960.nc                                 NaN
-unique     FORCING/era5/forcing/inverted/t2m.1956.nc                                 NaN
 
 [3014 rows x 2 columns]
 ```
 
-The comparison results are written to `lev_alb_fesom2_cmp.csv` file. Explore the
-contents this file using your favorite editor or search for specific entries
-using the `grep` command. For instance, using `grep` to finding the occurrences
-of folder `MESHES_FESOM2.1/hr`
+Each row is classified as one of: `identical`, `renamed`, `modified_latest_left`,
+`modified_latest_right`, or `unique`.
 
-``` shell
+You can search the output with `grep`:
+
+```shell
 $ grep MESHES_FESOM2.1/hr lev_alb_fesom2_cmp.csv
 identical,MESHES_FESOM2.1/hr/edgenum.out,/HR/edgenum.out
-identical,MESHES_FESOM2.1/hr/elvls.out,/HR/elvls.out
-identical,MESHES_FESOM2.1/hr/hr_griddes_elements.nc,/HR/hr_griddes_elements.nc
-identical,MESHES_FESOM2.1/hr/hr_zaxis.txt,/HR/hr_zaxis.txt
-identical,MESHES_FESOM2.1/hr/nlvls.out,/HR/nlvls.out
-identical,MESHES_FESOM2.1/hr/elem2d.out,/HR/elem2d.out
-identical,MESHES_FESOM2.1/hr/hr_griddes_elements_IFS.nc,/HR/hr_griddes_elements_IFS.nc
-identical,MESHES_FESOM2.1/hr/nod2d.out,/HR/nod2d.out
-identical,MESHES_FESOM2.1/hr/fesom.mesh.diag.nc,/HR/fesom.mesh.diag.nc
-identical,MESHES_FESOM2.1/hr/aux3d.out,/HR/aux3d.out
-identical,MESHES_FESOM2.1/hr/hr_griddes_nodes.nc,/HR/hr_griddes_nodes.nc
-identical,MESHES_FESOM2.1/hr/hr_griddes_nodes_IFS.nc,/HR/hr_griddes_nodes_IFS.nc
-identical,MESHES_FESOM2.1/hr/edge_tri.out,/HR/edge_tri.out
-identical,MESHES_FESOM2.1/hr/edges.out,/HR/edges.out
+...
 modified_latest_right,MESHES_FESOM2.1/hr/README.md,/HR/README.md
 unique,MESHES_FESOM2.1/hr/README,
 ```
 
-#### prepare-rsync
+> **Important:** Both CSVs must have been generated with the same checksum
+> algorithm. ptool will raise an error if you try to compare snapshots taken
+> with different algorithms.
 
-This command produces a shell script which contains a list of rsync commands to
-be executed. Before running the shell script, it is recommended to check the
-contents of this file to see if `prepare-rsync` has produced the desired
-result. User can directly manipulate the shell script to adjust for minor
-artifacts in-case the options offered by the command does not yield the exact
-result the user is expecting. Please check out the `--help` command for details
-on the options along with few examples of invoking this command.
+### prepare-rsync
 
-``` shell
+Generates a shell script containing rsync commands to transfer files between
+sites. Always review the script before executing it.
+
+```shell
 $ ptool prepare-rsync --help
 Usage: ptool prepare-rsync [OPTIONS] LEFT RIGHT
 
   Prepares rsync commands for the transfer.
 
-  Denpending on where data needs to pushed or pulled, provide either
-  `--lefthost` or `--righthost` information to prefix that path.
+  Depending on where data needs to be pushed or pulled, provide either
+  `--lefthost` or `--righthost` to prefix that path.
 
-  Note: when Albedo system is invloved, run this command on Albedo and provide
-  the other host information as Albedo can not be reached from other machines.
-
-  Examples that WORK:
-
-  # commands executed on Albedo (i.e., we are on Albedo)
-
-  1. sync data: Levante -> Albedo
-
-     ptool prepare-rsync --lefthost user@levante.dkrz.de
-     checksum_levante_fesom2.csv checksum_albedo_fesom2.csv
-
-  2. sync data: Albedo -> Levante
-
-     ptool prepare-rsync --righthost user@levante.dkrz.de
-     checksum_albedo_fesom2.csv checksum_levante_fesom2.csv
-
-  Examples that FAIL:
-
-  # commands executed on Levante (i.e., we are on Levante)
-
-  1. sync data: Levante -> Albedo
-
-     ptool prepare-rsync --righthost user@albedo0.dmawi.de
-     checksum_levante_fesom2.csv checksum_albedo_fesom2.csv
-
-     will produce rsync commands as follows:
-
-     rsync /some/path/on/levante user@albedo0.dmawi.de:/some/path/on/albedo
-
-     Although syntactically correct command, it fails as Albedo is not
-     reachable from other machines
-
-  2. sync data: Albedo -> Levante
-
-     ptool prepare-rsync --lefthost user@albedo0.dmawi.de
-     checksum_albedo_fesom2.csv checksum_levante_fesom2.csv
+  Note: when Albedo is involved, run this command on Albedo and provide the
+  other host information, as Albedo cannot be reached from external machines.
 
 Options:
   --ignore TEXT                   ignores directory and files
   --flags [unique|modified|both]  association type to include
-  -t, --threshold FLOAT           minumin value to satisfy valid association
+  -t, --threshold FLOAT           minimum value to satisfy valid association
                                   [default: 0.1]
-  -l, --lefthost TEXT             username@host prefix to the path for left
-                                  file
-  -r, --righthost TEXT            username@host prefix to the path for right
-                                  file
+  -l, --lefthost TEXT             username@host prefix for the left path
+  -r, --righthost TEXT            username@host prefix for the right path
   --help                          Show this message and exit.
 ```
 
-Assuming we are on Albedo and want to transfer the files from Levante to Albedo,
-invoke the `prepare-rsync` command as follows:
+Transferring files from Levante to Albedo (run this on Albedo):
 
-``` shell
-$ ptool prepare-rsync --lefthost a270243@levante.dkrz.de levante_fesom2.csv albedo_fesom2.csv 
+```shell
+$ ptool prepare-rsync --lefthost a270243@levante.dkrz.de levante_fesom2.csv albedo_fesom2.csv
 Created sync_cmd.sh
 ```
 
-Verify the contents of `sync_cmd.sh` before executing the script. It is also
-possible to directly edit this file to remove selected files from the
-transaction.
+Verify the contents of `sync_cmd.sh` before executing:
 
-To give a sneak-peak into the `sync_cmd.sh` file, looking for
-`MESHES_FESOM2.1/hr` entry as follows:
-
-``` shell
+```shell
 $ grep MESHES_FESOM2.1/hr sync_cmd.sh
 # MESHES_FESOM2.1/hr
 rsync -av --files-from=flist/95087e3b a270243@levante.dkrz.de:/pool/data/AWICM/FESOM2/MESHES_FESOM2.1/hr/ /albedo/pool/FESOM2/HR/
 ```
+
+#### Examples that work (run on Albedo)
+
+```shell
+# Sync data: Levante → Albedo
+ptool prepare-rsync --lefthost user@levante.dkrz.de levante_fesom2.csv albedo_fesom2.csv
+
+# Sync data: Albedo → Levante
+ptool prepare-rsync --righthost user@levante.dkrz.de albedo_fesom2.csv levante_fesom2.csv
+```
+
+#### Examples that fail (run on Levante)
+
+```shell
+# This fails — Albedo is not reachable from external machines
+ptool prepare-rsync --righthost user@albedo0.dmawi.de levante_fesom2.csv albedo_fesom2.csv
+```
+
+## Checksum algorithms
+
+ptool uses [imohash](https://github.com/kalafut/py-imohash) by default. imohash
+is a fast sampling hasher: for files larger than 128 KB it reads only three
+16 KB windows (start, middle, end) rather than the full file. This makes
+snapshot generation very fast even for large pools of climate data.
+
+**Trade-off:** Two files that are identical in the sampled regions but differ
+elsewhere will be incorrectly classified as identical (a false negative). For
+most sync workflows this risk is acceptably low, but it is worth being aware of.
+
+| Algorithm | Reads | False negatives possible? | Best for |
+|-----------|-------|--------------------------|----------|
+| `imohash` | 3 × 16 KB sample | Yes, for large files | Fast snapshots of large pools |
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for
+setup instructions and the contribution workflow.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 — see the
+[LICENSE](LICENSE) file for details.
